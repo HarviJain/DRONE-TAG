@@ -1,1042 +1,919 @@
-{# <!------TESTING CODE-----  //working code for date and time filter but filter is not implemented in backend>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Drone Tracker Dashboard</title>
+
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
   <style>
-    #map { height: 400px; width: 100%; margin-top: 20px; }
-    .input-section input, .input-section button {
-      padding: 8px; margin: 5px;
-    }
-    #export-btn { background-color: green; color: white; }
-
-    /* Status Messages */
-    #status-message {
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 4px;
-    }
-    .status-loading {
-      background-color: #e6f7ff;
-      color: #1890ff;
-    }
-    .status-success {
-      background-color: #f6ffed;
-      color: #52c41a;
-    }
-    .status-error {
-      background-color: #fff2f0;
-      color: #f5222d;
-    }
-    .status-warning {
-      background-color: #fffbe6;
-      color: #faad14;
+    /* ================= SIDEBAR ================= */
+    .sidebar {
+      width: 160px;
+      height: 100vh;
+      background: #ffffff;
+      border-right: 1px solid #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      position: fixed;
+      top: 70px;
+      left: 0;
+      z-index: 1000;
     }
 
-    /* Images Grid */
-    #images-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 15px;
-      margin-top: 20px;
+    .sidebar-header { padding: 18px; border-bottom: 1px solid #e5e7eb; }
+    .sidebar-title { font-size: 18px; font-weight: 600; color: #111827; }
+    .sidebar-nav { display: flex; flex-direction: column; padding: 12px 8px; flex: 1; }
+    .sidebar-item {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      padding: 14px 10px; margin-bottom: 10px; cursor: pointer; border-radius: 10px;
+      transition: background 0.2s ease;
     }
-    .image-container {
-      border: 1px solid #ddd;
-      border-radius: 4px;
+    .sidebar-item:hover { background: #f3f4f6; }
+    .item-top { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .sidebar-icon { width: 40px; height: 40px; color: #6366f1; }
+    .sidebar-item span { font-size: 13px; color: #374151; }
+    .chevron { margin-top: 6px; transition: transform 0.2s ease; color: #6b7280; }
+    .chevron.rotate { transform: rotate(180deg); }
+    .sidebar-dropdown { display: none; margin-left: 12px; margin-bottom: 10px; }
+    .dropdown-item {
+      display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+      font-size: 15px; font-weight: 500; color: #4b5563; cursor: pointer;
+      border-radius: 8px;
+    }
+    .dropdown-item:hover { background: #eef2ff; }
+
+    /* ================= TAG POPUP ================= */
+    .tag-popup {
+      position: fixed; top: 120px; left: 190px; width: 320px;
+      background: white; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      padding: 0; z-index: 2000;
       overflow: hidden;
-    }
-    .image-container img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-    }
-    .image-info {
-      padding: 8px;
-      font-size: 12px;
-      color: #666;
-    }
-    .no-data-message {
-      text-align: center;
-      padding: 20px;
-      color: #666;
+      transition: max-height 0.3s ease;
+      max-height: 0; /* collapsed by default */
     }
 
-    /* Map Popup */
-    .map-popup h4 {
-      margin: 0 0 5px 0;
-    }
-    .map-popup p {
-      margin: 3px 0;
+    .tag-popup-header {
+      display: flex; justify-content: space-between; align-items: center;
+      cursor: pointer; padding: 16px;
+      background: #f3f4f6; border-bottom: 1px solid #e5e7eb;
     }
 
-    /* Last Updated */
-    .last-updated {
-      text-align: right;
-      font-size: 12px;
-      color: #666;
-      padding: 5px 10px;
+    .tag-popup-header h4 { margin: 0; font-size: 16px; }
+
+    .tag-popup-body {
+      padding: 16px;
     }
 
+    .tracker-dropdown-header {
+      display: flex; justify-content: space-between; align-items: center;
+      cursor: pointer; padding: 8px 10px; background: #f9fafb;
+      border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 6px;
+    }
 
+    .tracker-dropdown.collapsible {
+      display: block;
+      max-height: 160px; overflow-y: auto;
+      border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 10px;
+    }
 
+    .tracker-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-bottom: 1px solid #eee;
+    font-size: 14px;
+  }
 
+  .tracker-option input[type="checkbox"] {
+    transform: scale(1.1);
+    cursor: pointer;
+  }
 
-
- /* Map Marker Styles */
-.custom-icon {
-    background: transparent;
+  .tracker-option input[type="color"] {
+    width: 28px;
+    height: 28px;
     border: none;
-}
+    padding: 0;
+    cursor: pointer;
+  }
 
-/* Start Marker (Green with pulse animation) */
-.green-icon {
-    animation: pulse-green 2s infinite;
-}
-.green-icon > div {
-    width: 24px;
-    height: 24px;
-    background: #2ecc71;
-    border: 3px solid #fff;
-    border-radius: 50%;
-    box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.5);
-    position: relative;
-}
+  .tracker-option span {
+    flex: 1;
+    cursor: pointer;
+  }
 
-/* End Marker (Red) */
-.red-icon > div {
-    width: 24px;
-    height: 24px;
-    background: #e74c3c;
-    border: 3px solid #fff;
-    border-radius: 50%;
-    box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.5);
-    position: relative;
-}
+    .tracker-option:hover { background: #eef2ff; }
 
-/* Waypoint Marker (Blue) */
-.blue-icon > div {
-    width: 16px;
-    height: 16px;
-    background: #3498db;
-    border: 2px solid #fff;
-    border-radius: 50%;
-    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.5);
-    position: relative;
-}
-
-/* Pulse animation for start marker */
-@keyframes pulse-green {
-    0% {
-        box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
+    .add-tracker { padding: 8px; display: flex; gap: 6px; border-top: 1px solid #e5e7eb; }
+    .tag-input-row { display: flex; gap: 6px; margin-top: 10px; }
+    .tag-input-row input { flex: 1; padding: 6px; }
+    .tag-input-row button {
+      padding: 6px 10px; background: #6366f1; color: white;
+      border: none; border-radius: 6px; cursor: pointer;
     }
-    70% {
-        box-shadow: 0 0 0 10px rgba(46, 204, 113, 0);
+
+
+
+
+
+    .tag-popup {
+  position: fixed;
+  top: 90px;
+
+  width: 320px;
+  background: white;
+  border-radius: 0 10px 10px 0;
+  box-shadow: 8px 0 20px rgba(0,0,0,0.15);
+
+  z-index: 2000;
+  overflow: hidden;
+
+  max-height: 0;
+  transition: max-height 0.3s ease;
+}
+
+
+
+.tag-popup.collapsed {
+  max-height: 48px !important; /* header only */
+}
+
+.tag-popup-body {
+  display: block;
+}
+
+.tag-popup.collapsed .tag-popup-body {
+  display: none;
+}
+
+
+/* Attached to sidebar */
+#tagPopup {
+  left: 160px;
+}
+
+#groupPopup {
+  left: 160px;
+}
+
+#groupDetailPopup {
+  left: 500px; /* 160 + 320 + spacing */
+}
+
+
+    /* ================= MAIN ================= */
+    main { margin-left: 170px; padding: 10px; }
+    #map { height: 650px; margin-top: 10px; }
+
+    /* ================= IMAGE GRID ================= */
+    #images-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+    .image-container { width: calc(25% - 10px); position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #e5e7eb; }
+    .image-container img { width: 100%; height: 120px; object-fit: cover; display: block; }
+
+    /* ================= GROUP TRACKERS LIST ================= */
+    .group-trackers {
+      margin-top: 8px; padding-left: 12px;
+      font-size: 13px; color: #4b5563;
     }
-    100% {
-        box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
-    }
-}
 
-/* Map Popup Styles */
-.map-popup {
-    font-family: Arial, sans-serif;
-    min-width: 200px;
-}
-.map-popup h4 {
-    margin: 0 0 5px;
-    color: #2c3e50;
-    font-size: 16px;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 5px;
-}
-.map-popup p {
-    margin: 5px 0;
-    font-size: 13px;
-    line-height: 1.4;
-}
-.map-popup strong {
-    color: #2c3e50;
-    font-weight: 600;
-}
-
-/* Status Message Styles */
-.status-loading {
-    color: #3498db;
-    background-color: #ebf5fb;
-    padding: 10px;
-    border-radius: 4px;
-    border-left: 4px solid #3498db;
-}
-.status-success {
-    color: #27ae60;
-    background-color: #eafaf1;
-    padding: 10px;
-    border-radius: 4px;
-    border-left: 4px solid #27ae60;
-}
-.status-error {
-    color: #e74c3c;
-    background-color: #fdedec;
-    padding: 10px;
-    border-radius: 4px;
-    border-left: 4px solid #e74c3c;
-}
-.status-warning {
-    color: #f39c12;
-    background-color: #fef5e7;
-    padding: 10px;
-    border-radius: 4px;
-    border-left: 4px solid #f39c12;
-}
-
-/* Image Gallery Styles */
-.image-container {
-    position: relative;
-    margin-bottom: 15px;
-    border-radius: 4px;
-    overflow: hidden;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    transition: transform 0.3s;
-}
-.image-container:hover {
-    transform: translateY(-3px);
-}
-.image-container img {
-    width: 100%;
-    height: auto;
-    display: block;
-    transition: opacity 0.3s;
-}
-.image-container:hover img {
-    opacity: 0.9;
-}
-.image-info {
-    padding: 8px;
-    background: #f8f9fa;
-    font-size: 12px;
-    color: #7f8c8d;
-}
-
-/* No Data Message */
-.no-data-message {
-    text-align: center;
-    padding: 20px;
-    color: #7f8c8d;
-    font-style: italic;
-}
-
-/* Last Updated Text */
-.last-updated {
-    font-size: 12px;
-    color: #7f8c8d;
-    text-align: right;
-    padding: 5px 10px;
-    background: #f8f9fa;
-    border-radius: 4px;
-    margin-top: 5px;
-}
-
-/* Drone Info Table */
-#drone-info-body td {
-    padding: 8px 12px;
-    border-bottom: 1px solid #eee;
-}
-#drone-info-body tr:last-child td {
-    border-bottom: none;
-}
+    .group-trackers div { padding: 3px 0; cursor: pointer; }
+    .group-trackers div:hover { background: #eef2ff; border-radius: 4px; padding-left: 6px; }
   </style>
 </head>
+
 <body>
-  <header>
-    <div class="logo-title">
-      <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" class="logo">
-      <span class="site-name">DRONE TAG</span>
+
+<header>
+  <div class="logo-title">
+    <img src="{{ url_for('static', filename='images/logo.svg') }}" class="logo">
+    <span class="site-name">DRONE TAG</span>
+  </div>
+</header>
+
+<!-- ================= SIDEBAR ================= -->
+<aside class="sidebar">
+  <div class="sidebar-header"><span class="sidebar-title">Drone Tag</span></div>
+  <nav class="sidebar-nav">
+    <div class="sidebar-item">
+      <i data-lucide="layout-dashboard" class="sidebar-icon"></i>
+      <span>Dashboard</span>
     </div>
-<nav>
 
-
- 
-
-    <!-- Home Icon -->
-   <a href="/index"    style="text-decoration: none;  font-size: 18px; font-weight: bold; color:white;">   Home</a>
-
-    <!-- User Profile Dropdown -->
-    <div class="user_logo dropdown">
-      <img src="{{ url_for('static', filename='images/profile.png') }}" alt="Profile" class="profile dropdown-toggle" title="Your Account" id="dropdownMenu" style="cursor: pointer;">
-      <div class="dropdown-menu" id="dropdownContent">
-        <a href="/account">Your Account</a>
-        <a href="/settings">Settings</a>
-        <a href="/support">Support</a>
-        <a href="/help">Help</a>
-        <a href="/logout">Logout</a>
+    <div class="sidebar-item" id="settingsToggle">
+      <div class="item-top">
+        <i data-lucide="settings" class="sidebar-icon"></i>
+        <span>Settings</span>
       </div>
+      <i data-lucide="chevron-down" class="chevron" id="settingsChevron"></i>
+    </div>
+
+    <div class="sidebar-dropdown" id="settingsDropdown">
+      <div class="dropdown-item" id="openTagPopup">
+        <i data-lucide="tag"></i><span>Tag</span>
+      </div>
+      <div class="dropdown-item">
+        <i data-lucide="cpu"></i><span>Sensor</span>
+      </div>
+    </div>
+
+    <div class="sidebar-item" id="reportsToggle">
+      <div class="item-top">
+        <i data-lucide="file-text" class="sidebar-icon"></i><span>Reports</span>
+      </div>
+      <i data-lucide="chevron-down" class="chevron" id="reportsChevron"></i>
+    </div>
+
+    <div class="sidebar-dropdown" id="reportsDropdown">
+      <div class="dropdown-item" id="openGroupPopup">
+        <i data-lucide="folder"></i><span>Group Name</span>
+      </div>
+    </div>
+  </nav>
+</aside>
+
+<!-- ================= TAG POPUP ================= -->
+<div class="tag-popup" id="tagPopup">
+  <div class="tag-popup-header" id="tagPopupHeader">
+    <h4>Tracker Popup</h4>
+    <i data-lucide="chevron-down" class="chevron" id="tagPopupChevron"></i>
+  </div>
+
+  <div class="tag-popup-body" id="tagPopupBody">
+    <div class="tracker-dropdown-header" id="trackerDropdownHeader">
+      <span>Available Trackers</span>
+      <i data-lucide="chevron-down" class="chevron" id="trackerChevron"></i>
+    </div>
+    <div class="tracker-dropdown collapsible" id="trackerList"></div>
+
+    <div class="add-tracker">
+      <input type="text" id="newTracker" placeholder="Add tracker ID">
+      <button id="addTrackerBtn">+</button>
+    </div>
+
+    <div class="tag-input-row">
+      <input type="text" id="tracker-id" placeholder="Manual Tracker ID">
+      <button id="fetch-btn">Fetch</button>
     </div>
   </div>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          </nav>
-
-  </header>
-
-  <main>
-    <div class="input-section">
-      <input type="text" id="tracker-id" placeholder="Enter Tracker ID" />
-      <button id="fetch-btn">Fetch Data</button>
-      <button id="export-btn">Export CSV</button>
-    </div>
-
-<!-- Date and Time Filter -->
-<div class="date-filter">
-  <label for="start-date">Start:</label>
-  <input type="datetime-local" id="start-date" name="start-date">
-
-  <label for="end-date">End:</label>
-  <input type="datetime-local" id="end-date" name="end-date">
-
-  <button id="filter-btn">Filter</button>
-</div> 
-
-    <div id="status-message"></div>
-    <div class="last-updated"></div>
-
-    <table class="info-table">
-      <thead>
-        <tr>
-          <th>Tracker ID</th>
-          <th>Drone UIN Number</th>
-          <th>Drone Category</th>
-          <th>Drone Application</th>
-        </tr>
-      </thead>
-      <tbody id="drone-info-body"></tbody>
-    </table>
-
-    <div id="map"></div>
-    <div id="images-grid"></div>
-  </main>
-
-  <!-- Auto-fetch if tracker_id passed via URL -->
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const trackerId = urlParams.get('tracker_id');
-      if (trackerId) {
-        const trackerInput = document.getElementById('tracker-id');
-        trackerInput.value = trackerId;
-        document.getElementById('fetch-btn').click();
-      }
-    });
-  </script>
-
-  <script src="{{ url_for('static', filename='js/fetchdata.js') }}"></script>
-
-
-<!-- drop down menu -->
-  <script>
-  document.addEventListener('DOMContentLoaded', function () {
-    const profileIcon = document.querySelector('.dropdown-toggle');
-    const dropdownMenu = document.getElementById('dropdownContent');
-
-    profileIcon.addEventListener('click', function (e) {
-      e.preventDefault();
-      dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
-    });
-
-    // Close dropdown when clicking outside
-    document.addEventListener('click', function (event) {
-      if (!event.target.closest('.dropdown')) {
-        dropdownMenu.style.display = 'none';
-      }
-    });
-  });
-</script>
-
-</body>
-</html> #}
-
-
-
-
-
-
-
-
-
-<!-- Original Code  -->
-{# <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Drone Tracker Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <style>
-    #map { height: 400px; width: 100%; margin-top: 20px; }
-    .input-section input, .input-section button {
-      padding: 8px; margin: 5px;
-    }
-    #export-btn { background-color: green; color: white; }
-
-    /* Status Messages */
-    #status-message {
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 4px;
-    }
-    .status-loading {
-      background-color: #e6f7ff;
-      color: #1890ff;
-    }
-    .status-success {
-      background-color: #f6ffed;
-      color: #52c41a;
-    }
-    .status-error {
-      background-color: #fff2f0;
-      color: #f5222d;
-    }
-    .status-warning {
-      background-color: #fffbe6;
-      color: #faad14;
-    }
-
-    /* Images Grid */
-    #images-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 15px;
-      margin-top: 20px;
-    }
-    .image-container {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .image-container img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-    }
-    .image-info {
-      padding: 8px;
-      font-size: 12px;
-      color: #666;
-    }
-    .no-data-message {
-      text-align: center;
-      padding: 20px;
-      color: #666;
-    }
-
-    /* Map Popup */
-    .map-popup h4 {
-      margin: 0 0 5px 0;
-    }
-    .map-popup p {
-      margin: 3px 0;
-    }
-
-    /* Last Updated */
-    .last-updated {
-      text-align: right;
-      font-size: 12px;
-      color: #666;
-      padding: 5px 10px;
-    }
-
-    /* Map Marker Styles */
-    .custom-icon {
-        background: transparent;
-        border: none;
-    }
-
-    /* Start Marker (Green with pulse animation) */
-    .green-icon {
-        animation: pulse-green 2s infinite;
-    }
-    .green-icon > div {
-        width: 24px;
-        height: 24px;
-        background: #2ecc71;
-        border: 3px solid #fff;
-        border-radius: 50%;
-        box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.5);
-        position: relative;
-    }
-
-    /* End Marker (Red) */
-    .red-icon > div {
-        width: 24px;
-        height: 24px;
-        background: #e74c3c;
-        border: 3px solid #fff;
-        border-radius: 50%;
-        box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.5);
-        position: relative;
-    }
-
-    /* Waypoint Marker (Blue) */
-    .blue-icon > div {
-        width: 16px;
-        height: 16px;
-        background: #3498db;
-        border: 2px solid #fff;
-        border-radius: 50%;
-        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.5);
-        position: relative;
-    }
-
-    /* Pulse animation for start marker */
-    @keyframes pulse-green {
-        0% {
-            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
-        }
-        70% {
-            box-shadow: 0 0 0 10px rgba(46, 204, 113, 0);
-        }
-        100% {
-            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
-        }
-    }
-
-    /* Map Popup Styles */
-    .map-popup {
-        font-family: Arial, sans-serif;
-        min-width: 200px;
-    }
-    .map-popup h4 {
-        margin: 0 0 5px;
-        color: #2c3e50;
-        font-size: 16px;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 5px;
-    }
-    .map-popup p {
-        margin: 5px 0;
-        font-size: 13px;
-        line-height: 1.4;
-    }
-    .map-popup strong {
-        color: #2c3e50;
-        font-weight: 600;
-    }
-
-    /* Status Message Styles */
-    .status-loading {
-        color: #3498db;
-        background-color: #ebf5fb;
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #3498db;
-    }
-    .status-success {
-        color: #27ae60;
-        background-color: #eafaf1;
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #27ae60;
-    }
-    .status-error {
-        color: #e74c3c;
-        background-color: #fdedec;
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #e74c3c;
-    }
-    .status-warning {
-        color: #f39c12;
-        background-color: #fef5e7;
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #f39c12;
-    }
-
-    /* Image Gallery Styles */
-    .image-container {
-        position: relative;
-        margin-bottom: 15px;
-        border-radius: 4px;
-        overflow: hidden;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        transition: transform 0.3s;
-    }
-    .image-container:hover {
-        transform: translateY(-3px);
-    }
-    .image-container img {
-        width: 100%;
-        height: auto;
-        display: block;
-        transition: opacity 0.3s;
-    }
-    .image-container:hover img {
-        opacity: 0.9;
-    }
-    .image-info {
-        padding: 8px;
-        background: #f8f9fa;
-        font-size: 12px;
-        color: #7f8c8d;
-    }
-
-    /* No Data Message */
-    .no-data-message {
-        text-align: center;
-        padding: 20px;
-        color: #7f8c8d;
-        font-style: italic;
-    }
-
-    /* Last Updated Text */
-    .last-updated {
-        font-size: 12px;
-        color: #7f8c8d;
-        text-align: right;
-        padding: 5px 10px;
-        background: #f8f9fa;
-        border-radius: 4px;
-        margin-top: 5px;
-    }
-
-    /* Drone Info Table */
-    #drone-info-body td {
-        padding: 8px 12px;
-        border-bottom: 1px solid #eee;
-    }
-    #drone-info-body tr:last-child td {
-        border-bottom: none;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <div class="logo-title">
-      <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" class="logo">
-      <span class="site-name">DRONE TAG</span>
-    </div>
-    <nav>
-      <!-- Home Icon -->
-      <a href="/index" style="text-decoration: none; font-size: 18px; font-weight: bold; color:white;">Home</a>
-
-      <!-- User Profile Dropdown -->
-      <div class="user_logo dropdown">
-        <img src="{{ url_for('static', filename='images/profile.png') }}" alt="Profile" class="profile dropdown-toggle" title="Your Account" id="dropdownMenu" style="cursor: pointer;">
-        <div class="dropdown-menu" id="dropdownContent">
-          <a href="/account">Your Account</a>
-          <a href="/settings">Settings</a>
-          <a href="/support">Support</a>
-          <a href="/help">Help</a>
-          <a href="/logout">Logout</a>
-        </div>
-      </div>
-    </nav>
-  </header>
-
-  <main>
-    <div class="input-section">
-      <input type="text" id="tracker-id" placeholder="Enter Tracker ID" />
-      <button id="fetch-btn">Fetch Data</button>
-      <button id="export-btn">Export CSV</button>
-    </div>
-
-    <div id="status-message"></div>
-    <div class="last-updated"></div>
-
-    <table class="info-table">
-      <thead>
-        <tr>
-          <th>Tracker ID</th>
-          <th>Drone UIN Number</th>
-          <th>Drone Category</th>
-          <th>Drone Application</th>
-        </tr>
-      </thead>
-      <tbody id="drone-info-body"></tbody>
-    </table>
-
-    <div id="map"></div>
-    <div id="images-grid"></div>
-  </main>
-
-  <!-- Auto-fetch if tracker_id passed via URL -->
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const trackerId = urlParams.get('tracker_id');
-      if (trackerId) {
-        const trackerInput = document.getElementById('tracker-id');
-        trackerInput.value = trackerId;
-        document.getElementById('fetch-btn').click();
-      }
-    });
-  </script>
-
-  <script src="{{ url_for('static', filename='js/fetchdata.js') }}"></script>
-
-  <!-- drop down menu -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const profileIcon = document.querySelector('.dropdown-toggle');
-      const dropdownMenu = document.getElementById('dropdownContent');
-
-      profileIcon.addEventListener('click', function (e) {
-        e.preventDefault();
-        dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
-      });
-
-      // Close dropdown when clicking outside
-      document.addEventListener('click', function (event) {
-        if (!event.target.closest('.dropdown')) {
-          dropdownMenu.style.display = 'none';
-        }
-      });
-    });
-  </script>
-</body>
-</html> #}
-
-
-
-
-
-
-
-
- <!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Drone Tracker Dashboard</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <style>
-    #map { height: 400px; width: 100%; margin-top: 20px; }
-    .input-section input, .input-section button {
-      padding: 8px; margin: 5px;
-    }
-    #export-btn { background-color: green; color: white; }
-
-    /* Status Messages */
-    #status-message {
-      padding: 10px;
-      margin: 10px 0;
-      border-radius: 4px;
-    }
-    .status-loading {
-      background-color: #e6f7ff;
-      color: #1890ff;
-    }
-    .status-success {
-      background-color: #f6ffed;
-      color: #52c41a;
-    }
-    .status-error {
-      background-color: #fff2f0;
-      color: #f5222d;
-    }
-    .status-warning {
-      background-color: #fffbe6;
-      color: #faad14;
-    }
-
-    /* Images Grid */
-    #images-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 15px;
-      margin-top: 20px;
-    }
-    .image-container {
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .image-container img {
-      width: 100%;
-      height: 150px;
-      object-fit: cover;
-    }
-    .image-info {
-      padding: 8px;
-      font-size: 12px;
-      color: #666;
-    }
-    .no-data-message {
-      text-align: center;
-      padding: 20px;
-      color: #666;
-    }
-
-    /* Map Popup */
-    .map-popup h4 {
-      margin: 0 0 5px 0;
-    }
-    .map-popup p {
-      margin: 3px 0;
-    }
-
-    /* Last Updated */
-    .last-updated {
-      text-align: right;
-      font-size: 12px;
-      color: #666;
-      padding: 5px 10px;
-    }
-
-    /* Map Marker Styles */
-    .custom-icon {
-        background: transparent;
-        border: none;
-    }
-
-    /* Start Marker (Green with pulse animation) */
-    .green-icon {
-        animation: pulse-green 2s infinite;
-    }
-    .green-icon > div {
-        width: 24px;
-        height: 24px;
-        background: #2ecc71;
-        border: 3px solid #fff;
-        border-radius: 50%;
-        box-shadow: 0 0 0 4px rgba(46, 204, 113, 0.5);
-        position: relative;
-    }
-
-    /* End Marker (Red) */
-    .red-icon > div {
-        width: 24px;
-        height: 24px;
-        background: #e74c3c;
-        border: 3px solid #fff;
-        border-radius: 50%;
-        box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.5);
-        position: relative;
-    }
-
-    /* Waypoint Marker (Blue) */
-    .blue-icon > div {
-        width: 16px;
-        height: 16px;
-        background: #3498db;
-        border: 2px solid #fff;
-        border-radius: 50%;
-        box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.5);
-        position: relative;
-    }
-
-    /* Pulse animation for start marker */
-    @keyframes pulse-green {
-        0% {
-            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7);
-        }
-        70% {
-            box-shadow: 0 0 0 10px rgba(46, 204, 113, 0);
-        }
-        100% {
-            box-shadow: 0 0 0 0 rgba(46, 204, 113, 0);
-        }
-    }
-
-    /* Map Popup Styles */
-    .map-popup {
-        font-family: Arial, sans-serif;
-        min-width: 200px;
-    }
-    .map-popup h4 {
-        margin: 0 0 5px;
-        color: #2c3e50;
-        font-size: 16px;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 5px;
-    }
-    .map-popup p {
-        margin: 5px 0;
-        font-size: 13px;
-        line-height: 1.4;
-    }
-    .map-popup strong {
-        color: #2c3e50;
-        font-weight: 600;
-    }
-
-    /* Status Message Styles */
-    .status-loading {
-        color: #3498db;
-        background-color: #ebf5fb;
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #3498db;
-    }
-    .status-success {
-        color: #27ae60;
-        background-color: #eafaf1;
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #27ae60;
-    }
-    .status-error {
-        color: #e74c3c;
-        background-color: #fdedec;
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #e74c3c;
-    }
-    .status-warning {
-        color: #f39c12;
-        background-color: #fef5e7;
-        padding: 10px;
-        border-radius: 4px;
-        border-left: 4px solid #f39c12;
-    }
-
-    /* Image Gallery Styles */
-    .image-container {
-        position: relative;
-        margin-bottom: 15px;
-        border-radius: 4px;
-        overflow: hidden;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        transition: transform 0.3s;
-    }
-    .image-container:hover {
-        transform: translateY(-3px);
-    }
-    .image-container img {
-        width: 100%;
-        height: auto;
-        display: block;
-        transition: opacity 0.3s;
-    }
-    .image-container:hover img {
-        opacity: 0.9;
-    }
-    .image-info {
-        padding: 8px;
-        background: #f8f9fa;
-        font-size: 12px;
-        color: #7f8c8d;
-    }
-
-    /* No Data Message */
-    .no-data-message {
-        text-align: center;
-        padding: 20px;
-        color: #7f8c8d;
-        font-style: italic;
-    }
-
-    /* Last Updated Text */
-    .last-updated {
-        font-size: 12px;
-        color: #7f8c8d;
-        text-align: right;
-        padding: 5px 10px;
-        background: #f8f9fa;
-        border-radius: 4px;
-        margin-top: 5px;
-    }
-
-    /* Drone Info Table */
-    #drone-info-body td {
-        padding: 8px 12px;
-        border-bottom: 1px solid #eee;
-    }
-    #drone-info-body tr:last-child td {
-        border-bottom: none;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <div class="logo-title">
-      <img src="{{ url_for('static', filename='images/logo.svg') }}" alt="Logo" class="logo">
-      <span class="site-name">DRONE TAG</span>
-    </div>
-    <nav>
-      <!-- Home Icon -->
-      <a href="/index" style="text-decoration: none; font-size: 18px; font-weight: bold; color:white;">Home</a>
-
-      <!-- User Profile Dropdown -->
-      <div class="user_logo dropdown">
-        <img src="{{ url_for('static', filename='images/profile.png') }}" alt="Profile" class="profile dropdown-toggle" title="Your Account" id="dropdownMenu" style="cursor: pointer;">
-        <div class="dropdown-menu" id="dropdownContent">
-          <a href="/account">Your Account</a>
-          <a href="/settings">Settings</a>
-          <a href="/support">Support</a>
-          <a href="/help">Help</a>
-          <a href="/logout">Logout</a>
-        </div>
-      </div>
-    </nav>
-  </header>
-
-  <main>
-   <div class="input-section">
-  <input type="text" id="tracker-id" placeholder="Enter Tracker ID" />
-  <button id="fetch-btn">Fetch Data</button>
-  <button id="export-btn">Export CSV</button>
-  <button id="export-images-btn">Export Images</button> <!-- NEW -->
 </div>
 
-    <div id="status-message"></div>
-    <div class="last-updated"></div>
+<!-- ================= GROUP POPUP ================= -->
+<div class="tag-popup" id="groupPopup">
+  <div class="tag-popup-header" id="groupPopupHeader">
+    <h4>Tracker Groups</h4>
+    <i data-lucide="chevron-down" class="chevron" id="groupPopupChevron"></i>
+  </div>
 
-    <table class="info-table">
-      <thead>
-        <tr>
-          <th>Tracker ID</th>
-          <th>Drone UIN Number</th>
-          <th>Drone Category</th>
-          <th>Drone Application</th>
-        </tr>
-      </thead>
-      <tbody id="drone-info-body"></tbody>
-    </table>
-    <div id="map" style="height:600px;"></div>
-    <div id="images-grid"></div>
-  </main>
+  <div class="tag-popup-body" id="groupPopupBody">
+    <div class="tag-input-row">
+      <input type="text" id="groupNameInput" placeholder="Group Name">
+      <button id="createGroupBtn">Add Group</button>
+    </div>
 
-  <!-- Auto-fetch if tracker_id passed via URL -->
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const trackerId = urlParams.get('tracker_id');
-      if (trackerId) {
-        const trackerInput = document.getElementById('tracker-id');
-        trackerInput.value = trackerId;
-        document.getElementById('fetch-btn').click();
-      }
-    });
-  </script>
+    <div id="groupList" class="tracker-dropdown collapsible" style="margin-top:10px;"></div>
 
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <div class="tag-input-row">
+      <input type="text" id="groupTrackerInput" placeholder="Tracker ID">
+      <button id="addTrackerToGroupBtn">Add</button>
+    </div>
+
+    <div class="tag-input-row">
+      <button id="fetchGroupBtn" style="width:100%">Fetch Group</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+<!-- ================= GROUP DETAIL POPUP ================= -->
+<!-- ================= GROUP DETAIL POPUP ================= -->
+<div class="tag-popup" id="groupDetailPopup">
+  <div class="tag-popup-header">
+    <h4 id="groupDetailTitle">Group</h4>
+    <i data-lucide="chevron-down" class="chevron"></i>
+  </div>
+
+  <div class="tag-popup-body">
+
+    <!-- Tracker list -->
+    <div id="groupTrackerList" class="tracker-dropdown collapsible">
+      <!-- JS will inject rows like:
+      ☑ [Tracker ID] 🎨
+      -->
+    </div>
+
+    <!-- Add tracker to group -->
+    <div class="tag-input-row" style="margin-top:10px;">
+      <input
+        type="text"
+        id="groupDetailTrackerInput"
+        placeholder="Add Tracker ID"
+      />
+      <button id="addTrackerToGroupDetailBtn">Add</button>
+    </div>
+
+  </div>
+</div>
+
+
+
+
+
+<main>
+  <div id="status-message"></div>
+  <div class="last-updated"></div>
+  <div id="map"></div>
+  <div id="images-grid"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="{{ url_for('static', filename='js/fetchdata.js') }}"></script>
 
-  <script src="{{ url_for('static', filename='js/fetchdata.js') }}"></script>
+<script>
+lucide.createIcons();
 
-  <!-- drop down menu -->
-  <script>
-    document.addEventListener('DOMContentLoaded', function () {
-      const profileIcon = document.querySelector('.dropdown-toggle');
-      const dropdownMenu = document.getElementById('dropdownContent');
+function makePopupCollapsible(popupId, chevronId) {
+  const popup = document.getElementById(popupId);
+  const chevron = document.getElementById(chevronId);
 
-      profileIcon.addEventListener('click', function (e) {
-        e.preventDefault();
-        dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
-      });
+  chevron.addEventListener("click", (e) => {
+    e.stopPropagation(); // prevent parent clicks
+    const collapsed = popup.classList.toggle("collapsed");
+    chevron.classList.toggle("rotate", !collapsed);
+  });
+}
 
-      // Close dropdown when clicking outside
-      document.addEventListener('click', function (event) {
-        if (!event.target.closest('.dropdown')) {
-          dropdownMenu.style.display = 'none';
-        }
-      });
+/* Enable collapse for all popups */
+makePopupCollapsible("tagPopup", "tagPopupChevron");
+makePopupCollapsible("groupPopup", "groupPopupChevron");
+
+/* group detail popup chevron */
+document
+  .querySelector("#groupDetailPopup .chevron")
+  .addEventListener("click", () => {
+    groupDetailPopup.classList.toggle("collapsed");
+  });
+
+/* ================= SIDEBAR DROPDOWNS ================= */
+function toggleMenu(toggleBtn, dropdown, chevron) {
+  toggleBtn.addEventListener("click", () => {
+    const open = dropdown.style.display === "block";
+    dropdown.style.display = open ? "none" : "block";
+    chevron.classList.toggle("rotate", !open);
+  });
+}
+
+toggleMenu(
+  document.getElementById("settingsToggle"),
+  document.getElementById("settingsDropdown"),
+  document.getElementById("settingsChevron")
+);
+
+toggleMenu(
+  document.getElementById("reportsToggle"),
+  document.getElementById("reportsDropdown"),
+  document.getElementById("reportsChevron")
+);
+
+/* ================= STORAGE ================= */
+const STORAGE_KEY = "saved_trackers";
+const GROUP_KEY = "tracker_groups";
+let activeGroup = null;
+
+const getSavedTrackers = () =>
+  JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+
+const saveTracker = (id) => {
+  const trackers = getSavedTrackers();
+  if (!trackers.includes(id)) {
+    trackers.push(id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trackers));
+  }
+};
+
+const getGroups = () =>
+  JSON.parse(localStorage.getItem(GROUP_KEY)) || {};
+
+const saveGroups = (groups) =>
+  localStorage.setItem(GROUP_KEY, JSON.stringify(groups));
+
+/* ================= TAG POPUP ================= */
+const tagPopup = document.getElementById("tagPopup");
+const tagPopupBody = document.getElementById("tagPopupBody");
+
+document.getElementById("openTagPopup").onclick = () => {
+  tagPopup.style.maxHeight = "600px";
+  tagPopupBody.style.display = "block";
+  renderTrackers();
+};
+
+const trackerList = document.getElementById("trackerList");
+const trackerInput = document.getElementById("tracker-id");
+
+function renderTrackers() {
+  trackerList.innerHTML = "";
+  getSavedTrackers().forEach(id => {
+    const div = document.createElement("div");
+    div.className = "tracker-option";
+    div.textContent = id;
+    div.onclick = () => handleFetch(id);
+    trackerList.appendChild(div);
+  });
+}
+
+function handleFetch(id) {
+  if (!id) return;
+  trackerInput.value = id;
+  saveTracker(id);
+  renderTrackers();
+  if (typeof fetchDroneData === "function") {
+    fetchDroneData();
+  }
+}
+
+document.getElementById("fetch-btn").onclick = () =>
+  handleFetch(trackerInput.value.trim());
+
+document.getElementById("addTrackerBtn").onclick = () => {
+  const val = document.getElementById("newTracker").value.trim();
+  if (!val) return;
+  saveTracker(val);
+  renderTrackers();
+  document.getElementById("newTracker").value = "";
+};
+
+/* ================= GROUP POPUP ================= */
+const groupPopup = document.getElementById("groupPopup");
+const groupPopupBody = document.getElementById("groupPopupBody");
+const groupList = document.getElementById("groupList");
+
+document.getElementById("openGroupPopup").onclick = () => {
+  groupPopup.style.maxHeight = "600px";
+  groupPopupBody.style.display = "block";
+  renderGroups();
+};
+
+function renderGroups() {
+  groupList.innerHTML = "";
+  const groups = getGroups();
+
+  Object.keys(groups).forEach(groupName => {
+    const div = document.createElement("div");
+    div.className = "tracker-option";
+    div.textContent = groupName;
+
+    div.addEventListener("click", () => {
+      openGroupDetail(groupName);          // 👈 OPEN GROUP
+      groupDetailPopup.style.maxHeight = "600px"; // 👈 SHOW POPUP
     });
-  </script>
+
+    groupList.appendChild(div);
+  });
+}
+
+
+document.getElementById("createGroupBtn").onclick = () => {
+  const name = document.getElementById("groupNameInput").value.trim();
+  if (!name) return;
+
+  const groups = getGroups();
+  if (!groups[name]) groups[name] = [];
+
+  saveGroups(groups);
+  document.getElementById("groupNameInput").value = "";
+  renderGroups();
+};
+
+/* ================= GROUP DETAIL POPUP ================= */
+/* const groupDetailPopup = document.getElementById("groupDetailPopup");
+const groupTrackerList = document.getElementById("groupTrackerList");
+const groupDetailTitle = document.getElementById("groupDetailTitle");
+
+function openGroupDetail(groupName) {
+  activeGroup = groupName;
+  groupDetailTitle.textContent = groupName;
+
+  const groups = getGroups();
+  groupTrackerList.innerHTML = "";
+
+  (groups[groupName] || []).forEach(tid => {
+    const div = document.createElement("div");
+    div.className = "tracker-option";
+    div.textContent = tid;
+    div.onclick = () => handleFetch(tid);
+    groupTrackerList.appendChild(div);
+  });
+
+  groupDetailPopup.style.maxHeight = "600px";
+}
+
+document.getElementById("addTrackerToGroupDetailBtn").onclick = () => {
+  if (!activeGroup) return;
+
+  const tracker = document
+    .getElementById("groupDetailTrackerInput")
+    .value.trim();
+
+  if (!tracker) return;
+
+  const groups = getGroups();
+  if (!groups[activeGroup].includes(tracker)) {
+    groups[activeGroup].push(tracker);
+    saveGroups(groups);
+  }
+
+  document.getElementById("groupDetailTrackerInput").value = "";
+  openGroupDetail(activeGroup);
+};
+
+
+document.getElementById("fetchGroupBtn").onclick = () => {
+  if (!activeGroup) {
+    alert("Select a group first");
+    return;
+  }
+
+  const groups = getGroups();
+  const trackerIds = groups[activeGroup] || [];
+
+  if (trackerIds.length === 0) {
+    alert("No trackers in this group");
+    return;
+  }
+
+  fetchMultipleTrackers(trackerIds);
+};
+
+document.getElementById("fetchGroupBtn").onclick = () => {
+  if (!activeGroup) return alert("Select a group first");
+  const groups = getGroups();
+  fetchGroupTrackers(groups[activeGroup]);
+}; */
+
+
+/* ================= GROUP DETAIL POPUP ================= */
+const groupDetailPopup = document.getElementById("groupDetailPopup");
+const groupTrackerList = document.getElementById("groupTrackerList");
+const groupDetailTitle = document.getElementById("groupDetailTitle");
+
+// Store group settings (visibility and colors) for each group
+let groupSettings = JSON.parse(localStorage.getItem('groupSettings')) || {};
+
+// Default color palette for trackers
+const defaultColors = [
+    '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', 
+    '#EF476F', '#9D4EDD', '#FB5607', '#3A86FF', '#8338EC'
+];
+
+function openGroupDetail(groupName) {
+    // Set active group globally
+    if (window.setActiveGroup) {
+        window.setActiveGroup(groupName);
+    }
+    
+    activeGroup = groupName;
+    groupDetailTitle.textContent = groupName;
+
+    const groups = getGroups();
+    groupTrackerList.innerHTML = "";
+
+    // Initialize settings for this group if not exists
+    if (!groupSettings[groupName]) {
+        groupSettings[groupName] = {};
+    }
+
+    (groups[groupName] || []).forEach((tid, index) => {
+        // Initialize tracker settings if not exists
+        if (!groupSettings[groupName][tid]) {
+            groupSettings[groupName][tid] = {
+                visible: true,
+                color: defaultColors[index % defaultColors.length]
+            };
+        }
+
+        const div = document.createElement("div");
+        div.className = "tracker-option";
+        div.dataset.trackerId = tid;
+
+        // Create checkbox container
+        const checkboxContainer = document.createElement("div");
+        checkboxContainer.className = "checkbox-container";
+        
+        // Create checkbox
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "tracker-checkbox";
+        checkbox.checked = groupSettings[groupName][tid].visible;
+        checkbox.dataset.trackerId = tid;
+        
+        // Create color picker (hidden - using color preview to trigger it)
+        const colorPicker = document.createElement("input");
+        colorPicker.type = "color";
+        colorPicker.className = "tracker-color-picker";
+        colorPicker.value = groupSettings[groupName][tid].color;
+        colorPicker.dataset.trackerId = tid;
+        colorPicker.style.display = "none"; // Hide the actual color picker
+        
+        // Create color preview (visible element users click on)
+        const colorPreview = document.createElement("div");
+        colorPreview.className = "color-preview";
+        colorPreview.style.backgroundColor = groupSettings[groupName][tid].color;
+        colorPreview.style.width = "20px";
+        colorPreview.style.height = "20px";
+        colorPreview.style.borderRadius = "4px";
+        colorPreview.style.cursor = "pointer";
+        colorPreview.style.border = "2px solid rgba(255, 255, 255, 0.3)";
+        
+        // Create tracker ID span
+        const trackerIdSpan = document.createElement("span");
+        trackerIdSpan.className = "tracker-id-text";
+        trackerIdSpan.textContent = tid;
+        trackerIdSpan.dataset.trackerId = tid;
+        
+        // Add click event to tracker ID (for single fetch)
+        trackerIdSpan.onclick = () => {
+            if (window.handleFetch) {
+                window.handleFetch(tid);
+            }
+        };
+        
+        // Add event listeners for checkbox
+        checkbox.onchange = (e) => {
+            const trackerId = e.target.dataset.trackerId;
+            const isVisible = e.target.checked;
+            groupSettings[groupName][trackerId].visible = isVisible;
+            saveGroupSettings();
+            
+            // Update visibility on map
+            if (window.updateTrackerVisibilityFromGroup) {
+                window.updateTrackerVisibilityFromGroup(trackerId, isVisible);
+            }
+        };
+        
+        // Add event listeners for color picker
+        colorPicker.onchange = (e) => {
+            const trackerId = e.target.dataset.trackerId;
+            const newColor = e.target.value;
+            groupSettings[groupName][trackerId].color = newColor;
+            saveGroupSettings();
+            
+            // Update color preview
+            colorPreview.style.backgroundColor = newColor;
+            
+            // Update color on map
+            if (window.updateTrackerColorFromGroup) {
+                window.updateTrackerColorFromGroup(trackerId, newColor);
+            }
+        };
+        
+        // Add click event to color preview to trigger color picker
+        colorPreview.onclick = () => colorPicker.click();
+
+        // Append all elements
+        checkboxContainer.appendChild(checkbox);
+        checkboxContainer.appendChild(colorPreview);
+        div.appendChild(checkboxContainer);
+        div.appendChild(colorPicker);
+        div.appendChild(trackerIdSpan);
+        groupTrackerList.appendChild(div);
+    });
+
+    groupDetailPopup.style.maxHeight = "600px";
+    saveGroupSettings();
+}
+
+function saveGroupSettings() {
+    localStorage.setItem('groupSettings', JSON.stringify(groupSettings));
+}
+
+// Function to get all visible trackers in a group
+function getVisibleTrackersInGroup(groupName) {
+    const groups = getGroups();
+    const trackers = groups[groupName] || [];
+    
+    return trackers.filter(tid => {
+        return groupSettings[groupName] && 
+               groupSettings[groupName][tid] && 
+               groupSettings[groupName][tid].visible;
+    });
+}
+
+// Add tracker to group
+document.getElementById("addTrackerToGroupDetailBtn").onclick = () => {
+    if (!activeGroup) return;
+
+    const tracker = document
+        .getElementById("groupDetailTrackerInput")
+        .value.trim();
+
+    if (!tracker) return;
+
+    const groups = getGroups();
+    if (!groups[activeGroup].includes(tracker)) {
+        groups[activeGroup].push(tracker);
+        saveGroups(groups);
+        
+        // Initialize settings for new tracker
+        if (!groupSettings[activeGroup]) {
+            groupSettings[activeGroup] = {};
+        }
+        const index = groups[activeGroup].length - 1;
+        groupSettings[activeGroup][tracker] = {
+            visible: true,
+            color: defaultColors[index % defaultColors.length]
+        };
+        saveGroupSettings();
+    }
+
+    document.getElementById("groupDetailTrackerInput").value = "";
+    openGroupDetail(activeGroup);
+};
+
+// Fetch group button
+document.getElementById("fetchGroupBtn").onclick = () => {
+    if (!activeGroup) {
+        alert("Select a group first");
+        return;
+    }
+
+    const groups = getGroups();
+    const trackerIds = groups[activeGroup] || [];
+
+    if (trackerIds.length === 0) {
+        alert("No trackers in this group");
+        return;
+    }
+
+    // Use the global fetchGroupTrackers function
+    if (window.fetchGroupTrackers) {
+        window.fetchGroupTrackers(trackerIds);
+    }
+};
+
+// Function to reset group settings
+function resetGroupSettings(groupName) {
+    if (confirm(`Reset all settings for group "${groupName}"?`)) {
+        delete groupSettings[groupName];
+        saveGroupSettings();
+        openGroupDetail(groupName);
+    }
+}
+
+// Function to select all/none trackers in current group
+function toggleAllTrackers(selectAll) {
+    if (!activeGroup) return;
+    
+    const groups = getGroups();
+    (groups[activeGroup] || []).forEach(tid => {
+        if (groupSettings[activeGroup] && groupSettings[activeGroup][tid]) {
+            groupSettings[activeGroup][tid].visible = selectAll;
+            
+            // Update checkbox if it exists in DOM
+            const checkbox = document.querySelector(`.tracker-checkbox[data-tracker-id="${tid}"]`);
+            if (checkbox) {
+                checkbox.checked = selectAll;
+            }
+            
+            // Update visibility on map
+            if (window.updateTrackerVisibilityFromGroup) {
+                window.updateTrackerVisibilityFromGroup(tid, selectAll);
+            }
+        }
+    });
+    saveGroupSettings();
+}
+
+// Add CSS styles for the new elements
+const style = document.createElement('style');
+style.textContent = `
+    .tracker-option {
+        display: flex;
+        align-items: center;
+        padding: 8px 10px;
+        margin: 5px 0;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 6px;
+        transition: background 0.2s;
+    }
+    
+    .tracker-option:hover {
+        background: rgba(255, 255, 255, 0.2);
+    }
+    
+    .checkbox-container {
+        display: flex;
+        align-items: center;
+        margin-right: 10px;
+        gap: 8px;
+    }
+    
+    .tracker-checkbox {
+        cursor: pointer;
+        width: 16px;
+        height: 16px;
+    }
+    
+    .color-preview {
+        width: 20px;
+        height: 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        transition: border-color 0.2s;
+    }
+    
+    .color-preview:hover {
+        border-color: rgba(255, 255, 255, 0.6);
+    }
+    
+    .tracker-color-picker {
+        display: none;
+    }
+    
+    .tracker-id-text {
+        flex: 1;
+        cursor: pointer;
+        padding: 4px 8px;
+        border-radius: 4px;
+        transition: background 0.2s;
+    }
+    
+    .tracker-id-text:hover {
+        background: rgba(0, 123, 255, 0.2);
+    }
+    
+    .group-controls {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .group-control-btn {
+        padding: 6px 12px;
+        background: rgba(0, 123, 255, 0.8);
+        border: none;
+        border-radius: 4px;
+        color: white;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background 0.2s;
+    }
+    
+    .group-control-btn:hover {
+        background: rgba(0, 123, 255, 1);
+    }
+`;
+
+document.head.appendChild(style);
+
+// Add control buttons to group detail
+function addGroupControls() {
+    // Remove existing controls if any
+    const existingControls = document.querySelector('.group-controls');
+    if (existingControls) {
+        existingControls.remove();
+    }
+    
+    // Create control buttons container
+    const controlsContainer = document.createElement('div');
+    controlsContainer.className = 'group-controls';
+    controlsContainer.innerHTML = `
+        <button onclick="toggleAllTrackers(true)" class="group-control-btn">Select All</button>
+        <button onclick="toggleAllTrackers(false)" class="group-control-btn">Deselect All</button>
+        <button onclick="resetGroupSettings('${activeGroup}')" class="group-control-btn">Reset Settings</button>
+    `;
+    
+    // Insert controls at the beginning of group detail popup
+    const groupDetailContent = document.querySelector('.group-detail-content');
+    if (groupDetailContent) {
+        groupDetailContent.insertBefore(controlsContainer, groupTrackerList);
+    }
+}
+
+// Modify openGroupDetail to include controls
+const originalOpenGroupDetail = openGroupDetail;
+openGroupDetail = function(groupName) {
+    originalOpenGroupDetail(groupName);
+    addGroupControls();
+};
+
+
+
+/* ================= INIT ================= */
+renderTrackers();
+renderGroups();
+</script>
+
+
 </body>
-</html>
+</html> 
+

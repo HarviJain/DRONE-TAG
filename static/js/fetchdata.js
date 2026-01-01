@@ -1,1792 +1,389 @@
 
-
-// document.addEventListener('DOMContentLoaded', function() {
-//     // DOM Elements
-//     const fetchBtn = document.getElementById('fetch-btn');
-//     const exportBtn = document.getElementById('export-btn');
-//     const trackerInput = document.getElementById('tracker-id');
-//     const droneInfoBody = document.getElementById('drone-info-body');
-//     const imagesGrid = document.getElementById('images-grid');
-//     const statusMessage = document.getElementById('status-message');
-//     const lastUpdatedDiv = document.querySelector('.last-updated');
-
-
-
-    
-//     // Map Setup with better default view
-//     const map = L.map('map').setView([23.0225, 72.5714], 13);
-//     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-//         maxZoom: 19,
-//         attribution: '&copy; OpenStreetMap contributors'
-//     }).addTo(map);
-    
-//     const markersLayer = L.layerGroup().addTo(map);
-//     const polylineLayer = L.layerGroup().addTo(map);
-    
-//     let fetchedData = [];
-//     let lastUpdateTime = null;
-
-//     // Custom Icon Creation
-//     function createCustomIcon(color, pulse = false) {
-//         const iconClass = pulse ? 'pulse-icon' : 'static-icon';
-//         return L.divIcon({
-//             className: `custom-icon ${iconClass} ${color}-icon`,
-//             html: '<div></div>',
-//             iconSize: [24, 24],
-//             iconAnchor: [12, 12]
-//         });
-//     }
-
-//     // Event Listeners
-//     fetchBtn.addEventListener('click', fetchDroneData);
-//     exportBtn.addEventListener('click', exportToCSV);
-
-//     // Main Data Fetch Function
-//     async function fetchDroneData() {
-//         const trackerId = trackerInput.value.trim();
-//         if (!trackerId) {
-//             showStatus('Please enter a Tracker ID', 'error');
-//             return;
-//         }
-        
-//         clearData();
-//         showStatus('Fetching latest data...', 'loading');
-        
-//         try {
-//             const response = await fetch('/api/data', {
-//                 method: 'POST',
-//                 headers: { 'Content-Type': 'application/json' },
-//                 body: JSON.stringify({ tracker_id: trackerId })
-//             });
-            
-//             if (!response.ok) {
-//                 const error = await response.json();
-//                 throw new Error(error.error || 'Server error occurred');
-//             }
-            
-//             const data = await response.json();
-//             console.log('API Response:', data);
-//             lastUpdateTime = new Date();
-            
-//             updateLastUpdatedTime();
-            
-//             let telemetry = data.Telemetry || [];
-//             let images = data.Images || [];
-            
-//             if (telemetry.length === 0 && images.length === 0) {
-//                 handleEmptyDataResponse(data.TrackerId || trackerId);
-//                 return;
-//             }
-            
-//             // Sort by timestamp if needed
-//             telemetry = telemetry.sort((a, b) => 
-//                 new Date(a.Timestamp) - new Date(b.Timestamp)
-//             );
-            
-//             fetchedData = telemetry;
-//             displayDroneInfo(data.TrackerId || trackerId, telemetry[0]);
-//             MapData(telemetry);
-//             displayImages(images);
-            
-//             showStatus(`Loaded ${telemetry.length} telemetry points and ${images.length} images`, 'success');
-//         } catch (error) {
-//             console.error('Error:', error);
-//             showStatus(error.message, 'error');
-//             showErrorOnMap(error.message);
-//         }
-//     }
-
-//     // Display Drone Information
-//     function displayDroneInfo(trackerId, firstRecord = {}) {
-//         droneInfoBody.innerHTML = '';
-        
-//         const row = document.createElement('tr');
-//         row.innerHTML = `
-//             <td>${trackerId}</td>
-//             <td>${firstRecord.DroneUINNumber || 'UA0'}</td>
-//             <td>${firstRecord.DroneCategory || 'Small'}</td>
-//             <td>${firstRecord.DroneApplication || 'Surveillance'}</td>
-//         `;
-//         droneInfoBody.appendChild(row);
-//     }
-
-//     // Plot Data on Map with Enhanced Visualization
-//     function plotMapData(telemetry) {
-//     markersLayer.clearLayers();
-//     polylineLayer.clearLayers();
-
-//     if (telemetry.length === 0) return;
-
-//     const pathCoords = [];
-
-//     telemetry.forEach(entry => {
-//         const lat = parseFloat(entry.Latitude);
-//         const lng = parseFloat(entry.Longitude);
-
-//         if (!isNaN(lat) && !isNaN(lng)) {
-//             pathCoords.push([lat, lng]);
-//         }
-//     });
-
-//     // Draw a single blue polyline
-//     if (pathCoords.length > 1) {
-//         const polyline = L.polyline(pathCoords, {
-//             color: 'blue',
-//             weight: 5,
-//             opacity: 0.8
-//         }).addTo(polylineLayer);
-
-//         map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-//     }
-
-//     // Add start, end, and intermediate markers
-//     telemetry.forEach((entry, index) => {
-//         const lat = parseFloat(entry.Latitude);
-//         const lng = parseFloat(entry.Longitude);
-//         const alt = parseFloat(entry.Altitude) || 0;
-
-//         if (isNaN(lat) || isNaN(lng)) return;
-
-//         let color = 'blue';
-//         let pulse = false;
-
-//         if (index === 0) {
-//             color = 'green';
-//             pulse = true;
-//         } else if (index === telemetry.length - 1) {
-//             color = 'red';
-//         }
-
-//         const marker = L.marker([lat, lng], {
-//             icon: createCustomIcon(color, pulse)
-//         }).addTo(markersLayer).bindPopup(`
-//             <div class="map-popup">
-//                 <h4>${entry.TrackerId || trackerInput.value}</h4>
-//                 <p><strong>Time:</strong> ${formatTimestamp(entry.Timestamp)}</p>
-//                 <p><strong>Location:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
-//                 <p><strong>Altitude:</strong> ${alt} m</p>
-//             </div>
-//         `);
-//     });
-// }
-
-
-//     // Display Images with Lazy Loading
-//     function displayImages(images) {
-//         imagesGrid.innerHTML = '';
-        
-//         if (!Array.isArray(images) || images.length === 0) {
-//             imagesGrid.innerHTML = `
-//                 <div class="no-data-message">
-//                     <p>No images available for this drone</p>
-//                 </div>
-//             `;
-//             return;
-//         }
-        
-//         images.forEach((imgUrl) => {
-//             if (typeof imgUrl !== 'string' || !imgUrl.startsWith('http')) return;
-            
-//             const imgContainer = document.createElement('div');
-//             imgContainer.className = 'image-container';
-            
-//             const imgLink = document.createElement('a');
-//             imgLink.href = imgUrl;
-//             imgLink.target = '_blank';
-            
-//             const img = document.createElement('img');
-//             img.src = imgUrl;
-//             img.alt = 'Drone image';
-//             img.loading = 'lazy';
-            
-//             const imgInfo = document.createElement('div');
-//             imgInfo.className = 'image-info';
-            
-//             const timestamp = extractTimestampFromUrl(imgUrl);
-//             if (timestamp) {
-//                 imgInfo.textContent = timestamp;
-//             }
-            
-//             imgLink.appendChild(img);
-//             imgContainer.appendChild(imgLink);
-//             imgContainer.appendChild(imgInfo);
-//             imagesGrid.appendChild(imgContainer);
-//         });
-//     }
-
-//     // Handle Empty Data Response
-//     function handleEmptyDataResponse(trackerId) {
-//         showStatus(`No data found for tracker ID: ${trackerId}`, 'warning');
-//         displayDroneInfo(trackerId);
-//         showMessageOnMap(`No data available for ${trackerId}`, 'info');
-//     }
-
-//     // Utility Functions
-//     function formatTimestamp(timestamp) {
-//         if (!timestamp) return 'Unknown';
-//         try {
-//             // Handle "dd-mm-yyyy HH:MM:SS" format
-//             if (timestamp.match(/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/)) {
-//                 const [datePart, timePart] = timestamp.split(' ');
-//                 const [day, month, year] = datePart.split('-');
-//                 return new Date(`${year}-${month}-${day}T${timePart}`).toLocaleString();
-//             }
-//             return new Date(timestamp).toLocaleString();
-//         } catch {
-//             return timestamp;
-//         }
-//     }
-
-//     function extractTimestampFromUrl(url) {
-//         try {
-//             const match = url.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-//             if (match) {
-//                 const [_, year, month, day, hour, minute, second] = match;
-//                 return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`).toLocaleString();
-//             }
-//             return null;
-//         } catch {
-//             return null;
-//         }
-//     }
-
-//     function updateLastUpdatedTime() {
-//         if (!lastUpdateTime) return;
-//         lastUpdatedDiv.textContent = `Last updated: ${lastUpdateTime.toLocaleString()}`;
-//     }
-
-//     function showMessageOnMap(message, type) {
-//         const center = map.getCenter();
-//         markersLayer.clearLayers();
-        
-//         const icon = L.divIcon({
-//             className: `map-message map-message-${type}`,
-//             html: `<div>${message}</div>`,
-//             iconSize: [200, 40]
-//         });
-        
-//         L.marker(center, {
-//             icon: icon,
-//             zIndexOffset: 1000
-//         }).addTo(markersLayer);
-        
-//         map.setView(center, 12);
-//     }
-
-//     function showErrorOnMap(error) {
-//         showMessageOnMap(`Error: ${error}`, 'error');
-//     }
-
-//     function clearData() {
-//         droneInfoBody.innerHTML = '';
-//         imagesGrid.innerHTML = '';
-//         markersLayer.clearLayers();
-//         polylineLayer.clearLayers();
-//         fetchedData = [];
-//     }
-
-//     function showStatus(message, type) {
-//         if (!statusMessage) return;
-//         statusMessage.textContent = message;
-//         statusMessage.className = `status-${type}`;
-        
-//         if (type !== 'loading') {
-//             setTimeout(() => {
-//                 statusMessage.textContent = '';
-//                 statusMessage.className = '';
-//             }, 5000);
-//         }
-//     }
-
-//     function exportToCSV() {
-//         if (fetchedData.length === 0) {
-//             showStatus('No data available to export', 'warning');
-//             return;
-//         }
-        
-//         try {
-//             const headers = Object.keys(fetchedData[0]);
-//             const csvContent = [
-//                 headers.join(','),
-//                 ...fetchedData.map(row => 
-//                     headers.map(field => 
-//                         `"${String(row[field] || '').replace(/"/g, '""')}"`
-//                     ).join(',')
-//                 )
-//             ].join('\n');
-            
-//             const blob = new Blob([csvContent], { type: 'text/csv' });
-//             const url = URL.createObjectURL(blob);
-            
-//             const link = document.createElement('a');
-//             link.href = url;
-//             link.download = `drone_data_${trackerInput.value || 'export'}_${new Date().toISOString().slice(0,10)}.csv`;
-//             document.body.appendChild(link);
-//             link.click();
-//             document.body.removeChild(link);
-            
-//             showStatus('Data exported successfully', 'success');
-//         } catch (error) {
-//             console.error('Export Error:', error);
-//             showStatus('Export failed: ' + error.message, 'error');
-//         }
-//     }
-// });
-
-
-
-             //working code for date and time filter but filter is not implemented in backend
-// document.addEventListener('DOMContentLoaded', function () {
-//     // DOM Elements
-//     const fetchBtn = document.getElementById('fetch-btn');
-//     const exportBtn = document.getElementById('export-btn');
-//     const trackerInput = document.getElementById('tracker-id');
-//     const droneInfoBody = document.getElementById('drone-info-body');
-//     const imagesGrid = document.getElementById('images-grid');
-//     const statusMessage = document.getElementById('status-message');
-//     const lastUpdatedDiv = document.querySelector('.last-updated');
-//     const startDateInput = document.getElementById('start-date');
-//     const endDateInput = document.getElementById('end-date');
-    
-
-//     // Map Setup
-//     const map = L.map('map').setView([23.0225, 72.5714], 13);
-//     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-//         maxZoom: 19,
-//         attribution: '&copy; OpenStreetMap contributors'
-//     }).addTo(map);
-
-//     const markersLayer = L.layerGroup().addTo(map);
-//     const polylineLayer = L.layerGroup().addTo(map);
-
-//     let fetchedData = [];
-//     let lastUpdateTime = null;
-
-//     function createCustomIcon(color, pulse = false) {
-//         const iconClass = pulse ? 'pulse-icon' : 'static-icon';
-//         return L.divIcon({
-//             className: `custom-icon ${iconClass} ${color}-icon`,
-//             html: '<div></div>',
-//             iconSize: [24, 24],
-//             iconAnchor: [12, 12]
-//         });
-//     }
-
-//     fetchBtn.addEventListener('click', fetchDroneData);
-//     exportBtn.addEventListener('click', exportToCSV);
-
-//     async function fetchDroneData() {
-//         const trackerId = trackerInput.value.trim();
-//         const startDate = startDateInput.value;
-//         const endDate = endDateInput.value;
-
-//         if (!trackerId) {
-//             showStatus('Please enter a Tracker ID', 'error');
-//             return;
-//         }
-
-//         clearData();
-//         showStatus('Fetching latest data...', 'loading');
-
-//         try {
-//             const isFilter = startDate && endDate;
-//             const payload = {
-//                 tracker_id: trackerId,
-//                 ...(isFilter && {
-//                     start_time: new Date(startDate).toISOString(),
-//                     end_time: new Date(endDate).toISOString()
-//                 })
-//             };
-
-//             const endpoint = isFilter ? '/api/data/filter' : '/api/data';
-
-//             const response = await fetch(endpoint, {
-//                 method: 'POST',
-//                 headers: { 'Content-Type': 'application/json' },
-//                 body: JSON.stringify(payload)
-//             });
-
-//             if (!response.ok) {
-//                 const error = await response.json();
-//                 throw new Error(error.error || 'Server error occurred');
-//             }
-
-//             const data = await response.json();
-//             console.log('API Response:', data);
-//             lastUpdateTime = new Date();
-//             updateLastUpdatedTime();
-
-//             let telemetry = data.Telemetry || [];
-//             let images = data.Images || [];
-
-//             if (telemetry.length === 0 && images.length === 0) {
-//                 handleEmptyDataResponse(data.TrackerId || trackerId);
-//                 return;
-//             }
-
-//             telemetry = telemetry.sort((a, b) =>
-//                 new Date(a.Timestamp) - new Date(b.Timestamp)
-//             );
-
-//             fetchedData = telemetry;
-//             displayDroneInfo(data.TrackerId || trackerId, telemetry[0]);
-//             plotMapData(telemetry);
-//             displayImages(images);
-
-//             showStatus(`Loaded ${telemetry.length} telemetry points and ${images.length} images`, 'success');
-//         } catch (error) {
-//             console.error('Error:', error);
-//             showStatus(error.message, 'error');
-//             showErrorOnMap(error.message);
-//         }
-//     }
-
-//     function displayDroneInfo(trackerId, firstRecord = {}) {
-//         droneInfoBody.innerHTML = '';
-//         const row = document.createElement('tr');
-//         row.innerHTML = `
-//             <td>${trackerId}</td>
-//             <td>${firstRecord.DroneUINNumber || 'UA0'}</td>
-//             <td>${firstRecord.DroneCategory || 'Small'}</td>
-//             <td>${firstRecord.DroneApplication || 'Surveillance'}</td>
-//         `;
-//         droneInfoBody.appendChild(row);
-//     }
-
-//     function plotMapData(telemetry) {
-//         markersLayer.clearLayers();
-//         polylineLayer.clearLayers();
-
-//         if (telemetry.length === 0) return;
-
-//         const pathCoords = [];
-
-//         telemetry.forEach(entry => {
-//             const lat = parseFloat(entry.Latitude);
-//             const lng = parseFloat(entry.Longitude);
-//             if (!isNaN(lat) && !isNaN(lng)) pathCoords.push([lat, lng]);
-//         });
-
-//         if (pathCoords.length > 1) {
-//             const polyline = L.polyline(pathCoords, {
-//                 color: 'blue',
-//                 weight: 5,
-//                 opacity: 0.8
-//             }).addTo(polylineLayer);
-//             map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-//         }
-
-//         telemetry.forEach((entry, index) => {
-//             const lat = parseFloat(entry.Latitude);
-//             const lng = parseFloat(entry.Longitude);
-//             const alt = parseFloat(entry.Altitude) || 0;
-
-//             if (isNaN(lat) || isNaN(lng)) return;
-
-//             let color = 'blue';
-//             let pulse = false;
-
-//             if (index === 0) {
-//                 color = 'green';
-//                 pulse = true;
-//             } else if (index === telemetry.length - 1) {
-//                 color = 'red';
-//             }
-
-//             const marker = L.marker([lat, lng], {
-//                 icon: createCustomIcon(color, pulse)
-//             }).addTo(markersLayer).bindPopup(`
-//                 <div class="map-popup">
-//                     <h4>${entry.TrackerId || trackerInput.value}</h4>
-//                     <p><strong>Time:</strong> ${formatTimestamp(entry.Timestamp)}</p>
-//                     <p><strong>Location:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
-//                     <p><strong>Altitude:</strong> ${alt} m</p>
-//                 </div>
-//             `);
-//         });
-//     }
-
-//     function displayImages(images) {
-//         imagesGrid.innerHTML = '';
-//         if (!Array.isArray(images) || images.length === 0) {
-//             imagesGrid.innerHTML = `<div class="no-data-message"><p>No images available for this drone</p></div>`;
-//             return;
-//         }
-
-//         images.forEach((imgUrl) => {
-//             if (typeof imgUrl !== 'string' || !imgUrl.startsWith('http')) return;
-
-//             const imgContainer = document.createElement('div');
-//             imgContainer.className = 'image-container';
-
-//             const imgLink = document.createElement('a');
-//             imgLink.href = imgUrl;
-//             imgLink.target = '_blank';
-
-//             const img = document.createElement('img');
-//             img.src = imgUrl;
-//             img.alt = 'Drone image';
-//             img.loading = 'lazy';
-
-//             const imgInfo = document.createElement('div');
-//             imgInfo.className = 'image-info';
-//             const timestamp = extractTimestampFromUrl(imgUrl);
-//             if (timestamp) imgInfo.textContent = timestamp;
-
-//             imgLink.appendChild(img);
-//             imgContainer.appendChild(imgLink);
-//             imgContainer.appendChild(imgInfo);
-//             imagesGrid.appendChild(imgContainer);
-//         });
-//     }
-
-//     function handleEmptyDataResponse(trackerId) {
-//         showStatus(`No data found for tracker ID: ${trackerId}`, 'warning');
-//         displayDroneInfo(trackerId);
-//         showMessageOnMap(`No data available for ${trackerId}`, 'info');
-//     }
-
-//     function extractTimestampFromUrl(url) {
-//         try {
-//             const match = url.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-//             if (match) {
-//                 const [_, year, month, day, hour, minute, second] = match;
-//                 return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`).toLocaleString();
-//             }
-//             return null;
-//         } catch {
-//             return null;
-//         }
-//     }
-
-//     function formatTimestamp(timestamp) {
-//         if (!timestamp) return 'Unknown';
-//         try {
-//             if (timestamp.match(/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/)) {
-//                 const [datePart, timePart] = timestamp.split(' ');
-//                 const [day, month, year] = datePart.split('-');
-//                 return new Date(`${year}-${month}-${day}T${timePart}`).toLocaleString();
-//             }
-//             return new Date(timestamp).toLocaleString();
-//         } catch {
-//             return timestamp;
-//         }
-//     }
-
-//     function updateLastUpdatedTime() {
-//         if (!lastUpdateTime) return;
-//         lastUpdatedDiv.textContent = `Last updated: ${lastUpdateTime.toLocaleString()}`;
-//     }
-
-//     function showMessageOnMap(message, type) {
-//         const center = map.getCenter();
-//         markersLayer.clearLayers();
-
-//         const icon = L.divIcon({
-//             className: `map-message map-message-${type}`,
-//             html: `<div>${message}</div>`,
-//             iconSize: [200, 40]
-//         });
-
-//         L.marker(center, {
-//             icon: icon,
-//             zIndexOffset: 1000
-//         }).addTo(markersLayer);
-//         map.setView(center, 12);
-//     }
-
-//     function showErrorOnMap(error) {
-//         showMessageOnMap(`Error: ${error}`, 'error');
-//     }
-
-//     function clearData() {
-//         droneInfoBody.innerHTML = '';
-//         imagesGrid.innerHTML = '';
-//         markersLayer.clearLayers();
-//         polylineLayer.clearLayers();
-//         fetchedData = [];
-//     }
-
-//     function showStatus(message, type) {
-//         if (!statusMessage) return;
-//         statusMessage.textContent = message;
-//         statusMessage.className = `status-${type}`;
-//         if (type !== 'loading') {
-//             setTimeout(() => {
-//                 statusMessage.textContent = '';
-//                 statusMessage.className = '';
-//             }, 5000);
-//         }
-//     }
-
-//     function exportToCSV() {
-//         if (fetchedData.length === 0) {
-//             showStatus('No data available to export', 'warning');
-//             return;
-//         }
-
-//         try {
-//             const headers = Object.keys(fetchedData[0]);
-//             const csvContent = [
-//                 headers.join(','),
-//                 ...fetchedData.map(row =>
-//                     headers.map(field =>
-//                         `"${String(row[field] || '').replace(/"/g, '""')}"`
-//                     ).join(',')
-//                 )
-//             ].join('\n');
-
-//             const blob = new Blob([csvContent], { type: 'text/csv' });
-//             const url = URL.createObjectURL(blob);
-
-//             const link = document.createElement('a');
-//             link.href = url;
-//             link.download = `drone_data_${trackerInput.value || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
-//             document.body.appendChild(link);
-//             link.click();
-//             document.body.removeChild(link);
-
-//             showStatus('Data exported successfully', 'success');
-//         } catch (error) {
-//             console.error('Export Error:', error);
-//             showStatus('Export failed: ' + error.message, 'error');
-//         }
-//     }
-// });
-
-
-
-
-
-
-
-
-
-                      //working code for map and data fetch without date filter
-// document.addEventListener('DOMContentLoaded', function () {
-//     // DOM Elements
-//     const fetchBtn = document.getElementById('fetch-btn');
-//     const exportBtn = document.getElementById('export-btn');
-//     const trackerInput = document.getElementById('tracker-id');
-//     const droneInfoBody = document.getElementById('drone-info-body');
-//     const imagesGrid = document.getElementById('images-grid');
-//     const statusMessage = document.getElementById('status-message');
-//     const lastUpdatedDiv = document.querySelector('.last-updated');
-
-//     // Map Setup
-//     const map = L.map('map').setView([23.0225, 72.5714], 13);
-//     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-//         maxZoom: 19,
-//         attribution: '&copy; OpenStreetMap contributors'
-//     }).addTo(map);
-
-//     const markersLayer = L.layerGroup().addTo(map);
-//     const polylineLayer = L.layerGroup().addTo(map);
-
-//     let fetchedData = [];
-//     let lastUpdateTime = null;
-
-//     function createCustomIcon(color, pulse = false) {
-//         const iconClass = pulse ? 'pulse-icon' : 'static-icon';
-//         return L.divIcon({
-//             className: `custom-icon ${iconClass} ${color}-icon`,
-//             html: '<div></div>',
-//             iconSize: [24, 24],
-//             iconAnchor: [12, 12]
-//         });
-//     }
-
-//     fetchBtn.addEventListener('click', fetchDroneData);
-//     exportBtn.addEventListener('click', exportToCSV);
-
-//     async function fetchDroneData() {
-//         const trackerId = trackerInput.value.trim();
-
-//         if (!trackerId) {
-//             showStatus('Please enter a Tracker ID', 'error');
-//             return;
-//         }
-
-//         clearData();
-//         showStatus('Fetching latest data...', 'loading');
-
-//         try {
-//             const response = await fetch('/api/data', {
-//                 method: 'POST',
-//                 headers: { 'Content-Type': 'application/json' },
-//                 body: JSON.stringify({ tracker_id: trackerId })
-//             });
-
-//             if (!response.ok) {
-//                 const error = await response.json();
-//                 throw new Error(error.error || 'Server error occurred');
-//             }
-
-//             const data = await response.json();
-//             console.log('API Response:', data);
-//             lastUpdateTime = new Date();
-//             updateLastUpdatedTime();
-
-//             let telemetry = data.Telemetry || [];
-//             let images = data.Images || [];
-
-//             if (telemetry.length === 0 && images.length === 0) {
-//                 handleEmptyDataResponse(data.TrackerId || trackerId);
-//                 return;
-//             }
-
-//             telemetry = telemetry.sort((a, b) =>
-//                 new Date(a.Timestamp) - new Date(b.Timestamp)
-//             );
-
-//             fetchedData = telemetry;
-//             displayDroneInfo(data.TrackerId || trackerId, telemetry[0]);
-//             plotMapData(telemetry);
-//             displayImages(images);
-
-//             showStatus(`Loaded ${telemetry.length} telemetry points and ${images.length} images`, 'success');
-//         } catch (error) {
-//             console.error('Error:', error);
-//             showStatus(error.message, 'error');
-//             showErrorOnMap(error.message);
-//         }
-//     }
-
-//     function displayDroneInfo(trackerId, firstRecord = {}) {
-//         droneInfoBody.innerHTML = '';
-//         const row = document.createElement('tr');
-//         row.innerHTML = `
-//             <td>${trackerId}</td>
-//             <td>${firstRecord.DroneUINNumber || 'UA0'}</td>
-//             <td>${firstRecord.DroneCategory || 'Small'}</td>
-//             <td>${firstRecord.DroneApplication || 'Surveillance'}</td>
-//         `;
-//         droneInfoBody.appendChild(row);
-//     }
-
-//     function plotMapData(telemetry) {
-//         markersLayer.clearLayers();
-//         polylineLayer.clearLayers();
-
-//         if (telemetry.length === 0) return;
-
-//         const pathCoords = [];
-
-//         telemetry.forEach(entry => {
-//             const lat = parseFloat(entry.Latitude);
-//             const lng = parseFloat(entry.Longitude);
-//             if (!isNaN(lat) && !isNaN(lng)) pathCoords.push([lat, lng]);
-//         });
-
-//         if (pathCoords.length > 1) {
-//             const polyline = L.polyline(pathCoords, {
-//                 color: 'blue',
-//                 weight: 5,
-//                 opacity: 0.8
-//             }).addTo(polylineLayer);
-//             map.fitBounds(polyline.getBounds(), { padding: [50, 50] });
-//         }
-
-//         telemetry.forEach((entry, index) => {
-//             const lat = parseFloat(entry.Latitude);
-//             const lng = parseFloat(entry.Longitude);
-//             const alt = parseFloat(entry.Altitude) || 0;
-
-//             if (isNaN(lat) || isNaN(lng)) return;
-
-//             let color = 'blue';
-//             let pulse = false;
-
-//             if (index === 0) {
-//                 color = 'green';
-//                 pulse = true;
-//             } else if (index === telemetry.length - 1) {
-//                 color = 'red';
-//             }
-
-//             const marker = L.marker([lat, lng], {
-//                 icon: createCustomIcon(color, pulse)
-//             }).addTo(markersLayer).bindPopup(`
-//                 <div class="map-popup">
-//                     <h4>${entry.TrackerId || trackerInput.value}</h4>
-//                     <p><strong>Time:</strong> ${formatTimestamp(entry.Timestamp)}</p>
-//                     <p><strong>Location:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
-//                     <p><strong>Altitude:</strong> ${alt} m</p>
-//                 </div>
-//             `);
-//         });
-//     }
-
-//     function displayImages(images) {
-//         imagesGrid.innerHTML = '';
-//         if (!Array.isArray(images) || images.length === 0) {
-//             imagesGrid.innerHTML = `<div class="no-data-message"><p>No images available for this drone</p></div>`;
-//             return;
-//         }
-
-//         images.forEach((imgUrl) => {
-//             if (typeof imgUrl !== 'string' || !imgUrl.startsWith('http')) return;
-
-//             const imgContainer = document.createElement('div');
-//             imgContainer.className = 'image-container';
-
-//             const imgLink = document.createElement('a');
-//             imgLink.href = imgUrl;
-//             imgLink.target = '_blank';
-
-//             const img = document.createElement('img');
-//             img.src = imgUrl;
-//             img.alt = 'Drone image';
-//             img.loading = 'lazy';
-
-//             const imgInfo = document.createElement('div');
-//             imgInfo.className = 'image-info';
-//             const timestamp = extractTimestampFromUrl(imgUrl);
-//             if (timestamp) imgInfo.textContent = timestamp;
-
-//             imgLink.appendChild(img);
-//             imgContainer.appendChild(imgLink);
-//             imgContainer.appendChild(imgInfo);
-//             imagesGrid.appendChild(imgContainer);
-//         });
-//     }
-
-//     function handleEmptyDataResponse(trackerId) {
-//         showStatus(`No data found for tracker ID: ${trackerId}`, 'warning');
-//         displayDroneInfo(trackerId);
-//         showMessageOnMap(`No data available for ${trackerId}`, 'info');
-//     }
-
-//     function extractTimestampFromUrl(url) {
-//         try {
-//             const match = url.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-//             if (match) {
-//                 const [_, year, month, day, hour, minute, second] = match;
-//                 return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`).toLocaleString();
-//             }
-//             return null;
-//         } catch {
-//             return null;
-//         }
-//     }
-
-//     function formatTimestamp(timestamp) {
-//         if (!timestamp) return 'Unknown';
-//         try {
-//             if (timestamp.match(/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/)) {
-//                 const [datePart, timePart] = timestamp.split(' ');
-//                 const [day, month, year] = datePart.split('-');
-//                 return new Date(`${year}-${month}-${day}T${timePart}`).toLocaleString();
-//             }
-//             return new Date(timestamp).toLocaleString();
-//         } catch {
-//             return timestamp;
-//         }
-//     }
-
-//     function updateLastUpdatedTime() {
-//         if (!lastUpdateTime) return;
-//         lastUpdatedDiv.textContent = `Last updated: ${lastUpdateTime.toLocaleString()}`;
-//     }
-
-//     function showMessageOnMap(message, type) {
-//         const center = map.getCenter();
-//         markersLayer.clearLayers();
-
-//         const icon = L.divIcon({
-//             className: `map-message map-message-${type}`,
-//             html: `<div>${message}</div>`,
-//             iconSize: [200, 40]
-//         });
-
-//         L.marker(center, {
-//             icon: icon,
-//             zIndexOffset: 1000
-//         }).addTo(markersLayer);
-//         map.setView(center, 12);
-//     }
-
-//     function showErrorOnMap(error) {
-//         showMessageOnMap(`Error: ${error}`, 'error');
-//     }
-
-//     function clearData() {
-//         droneInfoBody.innerHTML = '';
-//         imagesGrid.innerHTML = '';
-//         markersLayer.clearLayers();
-//         polylineLayer.clearLayers();
-//         fetchedData = [];
-//     }
-
-//     function showStatus(message, type) {
-//         if (!statusMessage) return;
-//         statusMessage.textContent = message;
-//         statusMessage.className = `status-${type}`;
-//         if (type !== 'loading') {
-//             setTimeout(() => {
-//                 statusMessage.textContent = '';
-//                 statusMessage.className = '';
-//             }, 5000);
-//         }
-//     }
-
-//     function exportToCSV() {
-//         if (fetchedData.length === 0) {
-//             showStatus('No data available to export', 'warning');
-//             return;
-//         }
-
-//         try {
-//             const headers = Object.keys(fetchedData[0]);
-//             const csvContent = [
-//                 headers.join(','),
-//                 ...fetchedData.map(row =>
-//                     headers.map(field =>
-//                         `"${String(row[field] || '').replace(/"/g, '""')}"`
-//                     ).join(',')
-//                 )
-//             ].join('\n');
-
-//             const blob = new Blob([csvContent], { type: 'text/csv' });
-//             const url = URL.createObjectURL(blob);
-
-//             const link = document.createElement('a');
-//             link.href = url;
-//             link.download = `drone_data_${trackerInput.value || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
-//             document.body.appendChild(link);
-//             link.click();
-//             document.body.removeChild(link);
-
-//             showStatus('Data exported successfully', 'success');
-//         } catch (error) {
-//             console.error('Export Error:', error);
-//             showStatus('Export failed: ' + error.message, 'error');
-//         }
-//     }
-// });
-
-
-
-
-
-
-
-// WORKING CODE
-
-// document.addEventListener('DOMContentLoaded', function () {
-//     // DOM Elements
-//     const fetchBtn = document.getElementById('fetch-btn');
-//     const exportBtn = document.getElementById('export-btn');
-//     const exportImagesBtn = document.getElementById('export-images-btn');
-//     const trackerInput = document.getElementById('tracker-id');
-//     const droneInfoBody = document.getElementById('drone-info-body');
-//     const imagesGrid = document.getElementById('images-grid');
-//     const statusMessage = document.getElementById('status-message');
-//     const lastUpdatedDiv = document.querySelector('.last-updated');
-
-//     // Map Setup
-//     const map = L.map('map').setView([23.0225, 72.5714], 13);
-//     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-//         maxZoom: 19,
-//         attribution: '&copy; OpenStreetMap contributors'
-//     }).addTo(map);
-
-//     const markersLayer = L.layerGroup().addTo(map);
-//     const polylineLayer = L.layerGroup().addTo(map);
-
-//     let fetchedData = [];
-//     let fetchedImages = [];
-//     let lastUpdateTime = null;
-
-//     function createCustomIcon(color, pulse = false) {
-//         const iconClass = pulse ? 'pulse-icon' : 'static-icon';
-//         return L.divIcon({
-//             className: `custom-icon ${iconClass} ${color}-icon`,
-//             html: '<div></div>',
-//             iconSize: [24, 24],
-//             iconAnchor: [12, 12]
-//         });
-//     }
-
-//     fetchBtn.addEventListener('click', fetchDroneData);
-//     exportBtn.addEventListener('click', exportToCSV);
-//     exportImagesBtn.addEventListener('click', exportImagesAsZip);
-
-
-
-//      // ⏱ Auto-fetch every 10 seconds
-//     setInterval(() => {
-//         const trackerId = trackerInput.value.trim();
-//         if (trackerId) { // only fetch if trackerId is provided
-//             console.log("⏳ Auto-refresh triggered...");
-//             fetchDroneData();
-//         } else {
-//             console.log("⚠️ Tracker ID not provided. Skipping auto-refresh.");
-//         }
-//     }, 10000); // 10000ms = 10 seconds
-
-
-
-//     async function fetchDroneData() {
-//         const trackerId = trackerInput.value.trim();
-
-//         if (!trackerId) {
-//             showStatus('Please enter a Tracker ID', 'error');
-//             return;
-//         }
-
-//         clearData();
-//         showStatus('Fetching latest data...', 'loading');
-
-//         try {
-//             const response = await fetch('/api/data', {
-//                 method: 'POST',
-//                 headers: { 'Content-Type': 'application/json' },
-//                 body: JSON.stringify({ tracker_id: trackerId })
-//             });
-
-//             if (!response.ok) {
-//                 const error = await response.json();
-//                 throw new Error(error.error || 'Server error occurred');
-//             }
-
-//             const data = await response.json();
-//             console.log('API Response:', data);
-//             lastUpdateTime = new Date();
-//             updateLastUpdatedTime();
-
-//             let telemetry = data.Telemetry || [];
-//             let images = data.Images || [];
-
-//             if (telemetry.length === 0 && images.length === 0) {
-//                 handleEmptyDataResponse(data.TrackerId || trackerId);
-//                 return;
-//             }
-
-//             telemetry = telemetry.sort((a, b) =>
-//                 new Date(a.Timestamp) - new Date(b.Timestamp)
-//             );
-
-//             fetchedData = telemetry;
-//             fetchedImages = images;
-//             displayDroneInfo(data.TrackerId || trackerId, telemetry[0]);
-//             plotMapData(telemetry);
-//             displayImages(images);
-
-//             showStatus(`Loaded ${telemetry.length} telemetry points and ${images.length} images`, 'success');
-//         } catch (error) {
-//             console.error('Error:', error);
-//             showStatus(error.message, 'error');
-//             showErrorOnMap(error.message);
-//         }
-//     }
-
-//     function displayDroneInfo(trackerId, firstRecord = {}) {
-//         droneInfoBody.innerHTML = '';
-//         const row = document.createElement('tr');
-//         row.innerHTML = `
-//             <td>${trackerId}</td>
-//             <td>${firstRecord.DroneUINNumber || 'UA0'}</td>
-//             <td>${firstRecord.DroneCategory || 'Small'}</td>
-//             <td>${firstRecord.DroneApplication || 'Surveillance'}</td>
-//         `;
-//         droneInfoBody.appendChild(row);
-//     }
-
-
-// // Plotting map point
-
-//     function plotMapData(telemetry) {
-//         markersLayer.clearLayers();
-//         polylineLayer.clearLayers();
-
-//         if (telemetry.length === 0) return;
-
-//         // Sort by timestamp to ensure correct order
-//         telemetry = telemetry.sort((a, b) => 
-//             new Date(a.Timestamp) - new Date(b.Timestamp)
-//         );
-
-//         const pathCoords = [];
-//         let previousTime = null;
-
-//         telemetry.forEach(entry => {
-//             const lat = parseFloat(entry.Latitude);
-//             const lng = parseFloat(entry.Longitude);
-            
-//             if (!isNaN(lat) && !isNaN(lng)) {
-//                 const currentTime = new Date(entry.Timestamp);
-                
-//                 // Only add to path if it's the first point or if time difference is reasonable
-//                 if (previousTime === null || 
-//                     (currentTime - previousTime) < 30 * 60 * 1000) { // 30 minutes threshold
-//                     pathCoords.push([lat, lng]);
-//                 } else {
-//                     // If time gap is too large, don't connect these points
-//                     // This prevents connecting separate flights
-//                     if (pathCoords.length > 1) {
-//                         createPathSegment(pathCoords);
-//                     }
-//                     pathCoords.length = 0; // Reset for new segment
-//                     pathCoords.push([lat, lng]);
-//                 }
-                
-//                 previousTime = currentTime;
-//             }
-//         });
-
-//         // Create the final path segment
-//         if (pathCoords.length > 1) {
-//             createPathSegment(pathCoords);
-//         }
-
-//         // Fit map to show all markers
-//         const markerGroup = new L.featureGroup(
-//             telemetry
-//                 .filter(entry => !isNaN(parseFloat(entry.Latitude)) && !isNaN(parseFloat(entry.Longitude)))
-//                 .map(entry => L.marker([parseFloat(entry.Latitude), parseFloat(entry.Longitude)]))
-//         );
-        
-//         if (markerGroup.getLayers().length > 0) {
-//             map.fitBounds(markerGroup.getBounds(), { padding: [50, 50] });
-//         }
-
-//         // Add markers
-//         telemetry.forEach((entry, index) => {
-//             const lat = parseFloat(entry.Latitude);
-//             const lng = parseFloat(entry.Longitude);
-//             const alt = parseFloat(entry.Altitude) || 0;
-
-//             if (isNaN(lat) || isNaN(lng)) return;
-
-//             let color = 'blue';
-//             let pulse = false;
-
-//             if (index === 0) {
-//                 color = 'blue';
-//                 pulse = true;
-//             } else if (index === telemetry.length - 1) {
-//                 color = 'red';
-//             }
-
-//             const marker = L.marker([lat, lng], {
-//                 icon: createCustomIcon(color, pulse)
-//             }).addTo(markersLayer).bindPopup(`
-//                 <div class="map-popup">
-//                     <h4>${entry.TrackerId || trackerInput.value}</h4>
-//                     <p><strong>Time:</strong> ${formatTimestamp(entry.Timestamp)}</p>
-//                     <p><strong>Location:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
-//                     <p><strong>Altitude:</strong> ${alt} m</p>
-//                 </div>
-//             `);
-//         });
-//     }
-
-
-
-
-
-//     // Helper function to create path segments
-//     function createPathSegment(coords) {
-//         L.polyline(coords, {
-//             color: 'blue',
-//             weight: 5,
-//             opacity: 0.8,
-//             smoothFactor: 1.0 // Makes the line smoother
-//         }).addTo(polylineLayer);
-//     }
-
-//     // ... rest of the code remains the same (displayImages, exportImagesAsZip, etc.)
-//     function displayImages(images) {
-//         imagesGrid.innerHTML = '';
-//         if (!Array.isArray(images) || images.length === 0) {
-//             imagesGrid.innerHTML = `<div class="no-data-message"><p>No images available for this drone</p></div>`;
-//             return;
-//         }
-
-//         images.forEach((imgUrl) => {
-//             if (typeof imgUrl !== 'string' || !imgUrl.startsWith('http')) return;
-
-//             const imgContainer = document.createElement('div');
-//             imgContainer.className = 'image-container';
-
-//             const imgLink = document.createElement('a');
-//             imgLink.href = imgUrl;
-//             imgLink.target = '_blank';
-
-//             const img = document.createElement('img');
-//             img.src = imgUrl;
-//             img.alt = 'Drone image';
-//             img.loading = 'lazy';
-
-//             const imgInfo = document.createElement('div');
-//             imgInfo.className = 'image-info';
-//             const timestamp = extractTimestampFromUrl(imgUrl);
-//             if (timestamp) imgInfo.textContent = timestamp;
-
-//             imgLink.appendChild(img);
-//             imgContainer.appendChild(imgLink);
-//             imgContainer.appendChild(imgInfo);
-//             imagesGrid.appendChild(imgContainer);
-//         });
-//     }
-
-//     async function exportImagesAsZip() {
-//         if (!fetchedImages || fetchedImages.length === 0) {
-//             showStatus('No images available to export', 'warning');
-//             return;
-//         }
-
-//         try {
-//             showStatus('Preparing images for download...', 'loading');
-//             const zip = new JSZip();
-//             const folder = zip.folder("drone_images");
-
-//             for (let i = 0; i < fetchedImages.length; i++) {
-//                 const url = fetchedImages[i];
-//                 const response = await fetch(url);
-//                 const blob = await response.blob();
-//                 const extension = url.split('.').pop().split(/\#|\?/)[0];
-//                 folder.file(`image_${i + 1}.${extension}`, blob);
-//             }
-
-//             const content = await zip.generateAsync({ type: "blob" });
-//             saveAs(content, `drone_images_${trackerInput.value || 'export'}_${new Date().toISOString().slice(0, 10)}.zip`);
-
-//             showStatus('Images exported successfully', 'success');
-//         } catch (error) {
-//             console.error("Image Export Error:", error);
-//             showStatus("Image export failed: " + error.message, "error");
-//         }
-//     }
-
-//     function handleEmptyDataResponse(trackerId) {
-//         showStatus(`No data found for tracker ID: ${trackerId}`, 'warning');
-//         displayDroneInfo(trackerId);
-//         showMessageOnMap(`No data available for ${trackerId}`, 'info');
-//     }
-
-//     function extractTimestampFromUrl(url) {
-//         try {
-//             const match = url.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-//             if (match) {
-//                 const [_, year, month, day, hour, minute, second] = match;
-//                 return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`).toLocaleString();
-//             }
-//             return null;
-//         } catch {
-//             return null;
-//         }
-//     }
-
-//     function formatTimestamp(timestamp) {
-//         if (!timestamp) return 'Unknown';
-//         try {
-//             if (timestamp.match(/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/)) {
-//                 const [datePart, timePart] = timestamp.split(' ');
-//                 const [day, month, year] = datePart.split('-');
-//                 return new Date(`${year}-${month}-${day}T${timePart}`).toLocaleString();
-//             }
-//             return new Date(timestamp).toLocaleString();
-//         } catch {
-//             return timestamp;
-//         }
-//     }
-
-//     function updateLastUpdatedTime() {
-//         if (!lastUpdateTime) return;
-//         lastUpdatedDiv.textContent = `Last updated: ${lastUpdateTime.toLocaleString()}`;
-//     }
-
-//     function showMessageOnMap(message, type) {
-//         const center = map.getCenter();
-//         markersLayer.clearLayers();
-
-//         const icon = L.divIcon({
-//             className: `map-message map-message-${type}`,
-//             html: `<div>${message}</div>`,
-//             iconSize: [200, 40]
-//         });
-
-//         L.marker(center, {
-//             icon: icon,
-//             zIndexOffset: 1000
-//         }).addTo(markersLayer);
-//         map.setView(center, 12);
-//     }
-
-//     function showErrorOnMap(error) {
-//         showMessageOnMap(`Error: ${error}`, 'error');
-//     }
-
-//     function clearData() {
-//         droneInfoBody.innerHTML = '';
-//         imagesGrid.innerHTML = '';
-//         markersLayer.clearLayers();
-//         polylineLayer.clearLayers();
-//         fetchedData = [];
-//         fetchedImages = [];
-//     }
-
-//     function showStatus(message, type) {
-//         if (!statusMessage) return;
-//         statusMessage.textContent = message;
-//         statusMessage.className = `status-${type}`;
-//         if (type !== 'loading') {
-//             setTimeout(() => {
-//                 statusMessage.textContent = '';
-//                 statusMessage.className = '';
-//             }, 5000);
-//         }
-//     }
-
-//     function exportToCSV() {
-//         if (fetchedData.length === 0) {
-//             showStatus('No data available to export', 'warning');
-//             return;
-//         }
-
-//         try {
-//             const headers = Object.keys(fetchedData[0]);
-//             const csvContent = [
-//                 headers.join(','),
-//                 ...fetchedData.map(row =>
-//                     headers.map(field =>
-//                         `"${String(row[field] || '').replace(/"/g, '""')}"`
-//                     ).join(',')
-//                 )
-//             ].join('\n');
-
-//             const blob = new Blob([csvContent], { type: 'text/csv' });
-//             const url = URL.createObjectURL(blob);
-
-//             const link = document.createElement('a');
-//             link.href = url;
-//             link.download = `drone_data_${trackerInput.value || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
-//             document.body.appendChild(link);
-//             link.click();
-//             document.body.removeChild(link);
-
-//             showStatus('Data exported successfully', 'success');
-//         } catch (error) {
-//             console.error('Export Error:', error);
-//             showStatus('Export failed: ' + error.message, 'error');
-//         }
-//     }
-
-//     document.getElementById("exportImages").addEventListener("click", async () => {
-//         try {
-//             console.log("📤 Starting image export...");
-
-//             let images = Array.from(document.querySelectorAll("#imageContainer img"))
-//                             .map(img => img.src);
-
-//             console.log("🖼 Images collected for export:", images);
-
-//             if (images.length === 0) {
-//                 alert("No images available to export!");
-//                 return;
-//             }
-
-//             let response = await fetch("/export_images", {
-//                 method: "POST",
-//                 headers: {
-//                     "Content-Type": "application/json"
-//                 },
-//                 body: JSON.stringify({ images })
-//             });
-
-//             console.log("📡 Export API response status:", response.status);
-
-//             if (!response.ok) {
-//                 let err = await response.text();
-//                 console.error("❌ Export API failed:", err);
-//                 alert("Failed to export images!");
-//                 return;
-//             }
-
-//             let blob = await response.blob();
-//             console.log("✅ Blob received, preparing download...");
-
-//             let link = document.createElement("a");
-//             link.href = window.URL.createObjectURL(blob);
-//             link.download = "exported_images.zip";
-//             link.click();
-
-//             console.log("📥 Download triggered successfully.");
-//         } catch (error) {
-//             console.error("💥 Error in exportImages click handler:", error);
-//             alert("Error exporting images. Check console/logs.");
-//         }
-//     });
-// });
-
-
-// Testing Code
-
 document.addEventListener('DOMContentLoaded', function () {
-    // DOM Elements
-    const fetchBtn = document.getElementById('fetch-btn');
-    const exportBtn = document.getElementById('export-btn');
-    const exportImagesBtn = document.getElementById('export-images-btn');
-    const trackerInput = document.getElementById('tracker-id');
-    const droneInfoBody = document.getElementById('drone-info-body');
-    const imagesGrid = document.getElementById('images-grid');
-    const statusMessage = document.getElementById('status-message');
-    const lastUpdatedDiv = document.querySelector('.last-updated');
 
-    // Map Setup
-    const map = L.map('map').setView([23.0225, 72.5714], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
+  /* ================= DOM ================= */
+  const fetchBtn = document.getElementById('fetch-btn');
+  const trackerInput = document.getElementById('tracker-id');
+  const statusMessage = document.getElementById('status-message');
+  const lastUpdatedDiv = document.querySelector('.last-updated');
 
-    const markersLayer = L.layerGroup().addTo(map);
-    const polylineLayer = L.layerGroup().addTo(map);
+  /* ================= MAP ================= */
+  const map = L.map('map').setView([23.0225, 72.5714], 13);
 
-    let fetchedData = [];   // full telemetry (for CSV)
-    let pathPoints = [];    // 30s-sampled points used for path
-    let fetchedImages = [];
-    let lastUpdateTime = null;
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(map);
 
-    function createCustomIcon(color, pulse = false) {
-        const iconClass = pulse ? 'pulse-icon' : 'static-icon';
-        return L.divIcon({
-            className: `custom-icon ${iconClass} ${color}-icon`,
-            html: '<div></div>',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
-        });
+  const markersLayer = L.layerGroup().addTo(map);
+  const polylineLayer = L.layerGroup().addTo(map);
+
+  let lastUpdateTime = null;
+  let activeGroup = null;
+
+  /* ================= TRACKER STATE ================= */
+  const trackerPolylines = {};
+  const trackerMarkers = {};
+  const trackerColorMap = {};
+  const trackerVisibility = {};
+
+  const COLORS = ['#2563eb', '#eab308', '#9333ea', '#ea580c', '#0891b2', '#4f46e5'];
+  let colorIndex = 0;
+
+  // Group settings from localStorage
+  let groupSettings = JSON.parse(localStorage.getItem('groupSettings')) || {};
+
+  function getTrackerColor(trackerId) {
+    // First check group settings
+    if (activeGroup && groupSettings[activeGroup] && groupSettings[activeGroup][trackerId]) {
+      return groupSettings[activeGroup][trackerId].color;
     }
-
-    fetchBtn.addEventListener('click', fetchDroneData);
-    exportBtn.addEventListener('click', exportToCSV);
-    exportImagesBtn.addEventListener('click', exportImagesAsZip);
-
-    // ⏱ Auto-fetch every 10 seconds (when tracker is present)
-    setInterval(() => {
-        const trackerId = trackerInput.value.trim();
-        if (trackerId) fetchDroneData();
-    }, 60000);
-
-    async function fetchDroneData() {
-    const trackerId = trackerInput.value.trim();
-    if (!trackerId) {
-        showStatus('Please enter a Tracker ID', 'error');
-        return;
+    
+    // Then check existing color map
+    if (trackerColorMap[trackerId]) {
+      return trackerColorMap[trackerId];
     }
+    
+    // Otherwise assign new color
+    const color = COLORS[colorIndex++ % COLORS.length];
+    trackerColorMap[trackerId] = color;
+    updateLegend();
+    return color;
+  }
 
-    clearData();
-    showStatus('Fetching latest trajectory...', 'loading');
+  function isTrackerVisible(trackerId) {
+    // Check group settings first
+    if (activeGroup && groupSettings[activeGroup] && groupSettings[activeGroup][trackerId]) {
+      return groupSettings[activeGroup][trackerId].visible;
+    }
+    
+    // Default to visible
+    return trackerVisibility[trackerId] !== false;
+  }
+
+  /* ================= ICONS ================= */
+  function createPinIcon(color, size = 34) {
+    return L.divIcon({
+      className: '',
+      html: `
+        <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+        </svg>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size],
+      popupAnchor: [0, -size]
+    });
+  }
+
+  function createDotIcon(color, size = 8) {
+    return L.divIcon({
+      className: '',
+      html: `<div style="background:${color};width:${size}px;height:${size}px;border-radius:50%;border:2px solid white;"></div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2]
+    });
+  }
+
+  const START_ICON = createPinIcon('green');
+  const END_ICON = createPinIcon('red');
+
+  /* ================= LEGEND ================= */
+  const legend = L.control({ position: 'bottomright' });
+
+  legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'map-legend');
+    div.style.background = 'white';
+    div.style.padding = '10px';
+    div.style.borderRadius = '8px';
+    div.style.boxShadow = '0 4px 12px rgba(0,0,0,0.2)';
+    div.style.fontSize = '13px';
+    return div;
+  };
+
+  legend.addTo(map);
+
+ function updateLegend() {
+  const div = document.querySelector('.map-legend');
+  if (!div) return;
+
+  const pin = (color) => `
+    <svg width="14" height="22" viewBox="0 0 24 24" fill="${color}" xmlns="http://www.w3.org/2000/svg">
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+    </svg>
+  `;
+
+  let html = `
+    <strong>Legend</strong><br><br>
+
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+      ${pin('green')}
+      <span style="font-weight:600;">Start</span>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+      ${pin('red')}
+      <span style="font-weight:600;">End</span>
+    </div>
+
+    <hr style="margin:6px 0">
+  `;
+
+  Object.entries(trackerColorMap).forEach(([id, color]) => {
+    if (isTrackerVisible(id)) {
+      html += `
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="color:${color};font-size:14px;">●</span>
+          ${id}
+        </div>
+      `;
+    }
+  });
+
+  div.innerHTML = html;
+}
+
+
+
+  /* ================= EVENTS ================= */
+  fetchBtn?.addEventListener('click', () => {
+    const id = trackerInput.value.trim();
+    if (id) fetchSingleTracker(id, true);
+  });
+
+  /* ================= FETCH SINGLE ================= */
+  async function fetchSingleTracker(trackerId, clearBefore = false) {
+    if (!trackerId) return;
+
+    if (clearBefore) clearMap();
+
+    const color = getTrackerColor(trackerId);
+    trackerVisibility[trackerId] = true;
+    showStatus(`Fetching ${trackerId}...`, 'loading');
 
     try {
-        const response = await fetch('/api/trajectory', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                tracker_id: trackerId,
-                interval_seconds: 30,
-                max_gap_seconds: 120
-            })
-        });
+      const res = await fetch('/api/trajectory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tracker_id: trackerId,
+          interval_seconds: 30,
+          max_gap_seconds: 120
+        })
+      });
 
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Server error occurred');
-        }
+      if (!res.ok) throw new Error('Server error');
 
-        const data = await response.json();
-        lastUpdateTime = new Date();
-        updateLastUpdatedTime();
+      const data = await res.json();
+      const points = (data.points || []).map(p => ({
+        lat: +p.lat,
+        lon: +p.lon,
+        time: p.timestamp
+      }));
 
-        // Map API fields to frontend, with fallbacks
-        pathPoints = (data.points || []).map(p => ({
-            Latitude: p.lat,
-            Longitude: p.lon,
-            Timestamp: p.timestamp,
-            Altitude: p.altitude || 0,
-            DroneUINNumber: p.DroneUINNumber || "N/A",
-            DroneCategory: p.DroneCategory || "N/A",
-            DroneApplication: p.DroneApplication || "N/A"
-        }));
+      plotTrackerPath(trackerId, points, color);
 
-        fetchedImages = data.images || [];
-        fetchedData = pathPoints; // for CSV export
+      lastUpdateTime = new Date();
+      updateLastUpdatedTime();
+      showStatus(`Loaded ${trackerId}`, 'success');
 
-        // Display first row info in table
-        const firstPoint = pathPoints[0] || {};
-        displayDroneInfo(trackerId, firstPoint);
-
-        // Plot map & images
-        plotMapData(pathPoints);
-        displayImages(fetchedImages);
-
-        showStatus(`Loaded ${pathPoints.length} path points (30s interval) and ${fetchedImages.length} images`, 'success');
-
-    } catch (error) {
-        console.error('Error:', error);
-        showStatus(error.message, 'error');
-        showErrorOnMap(error.message);
+    } catch (err) {
+      showStatus(`${trackerId}: ${err.message}`, 'error');
     }
-}
+  }
 
-// Display first row of drone info in table
-function displayDroneInfo(trackerId, firstRecord = {}) {
-    droneInfoBody.innerHTML = '';
-    const row = document.createElement('tr');
-    row.innerHTML = `
-        <td>${trackerId}</td>
-        <td>${firstRecord.DroneUINNumber || 'N/A'}</td>
-        <td>${firstRecord.DroneCategory || 'N/A'}</td>
-        <td>${firstRecord.DroneApplication || 'N/A'}</td>
-    `;
-    droneInfoBody.appendChild(row);
-}
+  /* ================= GROUP FETCH ================= */
+  window.fetchGroupTrackers = function (trackerIds) {
+    if (!trackerIds?.length) return alert('Group empty');
+    
+    // Filter by visibility
+    const visibleTrackers = trackerIds.filter(id => isTrackerVisible(id));
+    
+    if (visibleTrackers.length === 0) {
+      alert('No visible trackers in this group');
+      return;
+    }
+    
+    clearMap();
+    visibleTrackers.forEach((id, i) => {
+      setTimeout(() => fetchSingleTracker(id, false), i * 400);
+    });
+  };
 
-// Update map popup to show the 3 fields
-function plotMapData(points) {
-    markersLayer.clearLayers();
-    polylineLayer.clearLayers();
+  /* ================= PLOT ================= */
+  function plotTrackerPath(trackerId, points, color) {
+    if (!points.length) return;
 
-    if (!points || points.length === 0) return;
+    // Skip if tracker is hidden
+    if (!isTrackerVisible(trackerId)) {
+      console.log(`${trackerId} is hidden, not plotting`);
+      return;
+    }
 
-    const coords = points.map(p => [parseFloat(p.Latitude), parseFloat(p.Longitude)]);
-    const polyline = L.polyline(coords, { color: 'blue', weight: 4, opacity: 0.9 }).addTo(polylineLayer);
+    const latlngs = points.map(p => [p.lat, p.lon]);
 
-    points.forEach((p, i) => {
-        const lat = parseFloat(p.Latitude);
-        const lng = parseFloat(p.Longitude);
-        const iconColor = (i === 0) ? 'green' : (i === points.length - 1) ? 'red' : 'blue';
-        L.marker([lat, lng], { icon: createCustomIcon(iconColor, i === 0) })
-            .addTo(markersLayer)
-            .bindPopup(`
-                <div class="map-popup">
-                    <h4>Tracker ID: ${trackerInput.value}</h4>
-                    <p><strong>Time:</strong> ${formatTimestamp(p.Timestamp)}</p>
-                    <p><strong>Location:</strong> ${lat.toFixed(6)}, ${lng.toFixed(6)}</p>
-                    <p><strong>Altitude:</strong> ${p.Altitude.toFixed(2)} m</p>
-                    <p><strong>UIN:</strong> ${p.DroneUINNumber || 'N/A'}</p>
-                    <p><strong>Category:</strong> ${p.DroneCategory || 'N/A'}</p>
-                    <p><strong>Application:</strong> ${p.DroneApplication || 'N/A'}</p>
-                </div>
-            `);
+    // Polyline
+    const polyline = L.polyline(latlngs, {
+      color: color,
+      weight: 4,
+      opacity: 0.85
+    }).addTo(polylineLayer);
+
+    trackerPolylines[trackerId] = polyline;
+    
+    // Store in global window object for access from group detail popup
+    if (!window.trajectoryOverlays) {
+      window.trajectoryOverlays = {};
+    }
+    window.trajectoryOverlays[trackerId] = polyline;
+
+    // Markers
+    trackerMarkers[trackerId] = [];
+
+    // START marker
+    const startMarker = L.marker(latlngs[0], { icon: START_ICON })
+      .addTo(markersLayer)
+      .bindPopup(`<b>${trackerId}</b><br>Start<br>${formatTimestamp(points[0].time)}`);
+    trackerMarkers[trackerId].push(startMarker);
+
+    // END marker
+    const endMarker = L.marker(latlngs.at(-1), { icon: END_ICON })
+      .addTo(markersLayer)
+      .bindPopup(`<b>${trackerId}</b><br>End<br>${formatTimestamp(points.at(-1).time)}`);
+    trackerMarkers[trackerId].push(endMarker);
+
+    // MIDDLE POINTS
+    points.slice(1, -1).forEach(p => {
+      const dotMarker = L.marker([p.lat, p.lon], {
+        icon: createDotIcon(color, 8)
+      }).addTo(markersLayer);
+      trackerMarkers[trackerId].push(dotMarker);
     });
 
-    if (coords.length) map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
-}
+    // Fit bounds to all visible trackers
+    updateMapBounds();
+  }
 
+  /* ================= VISIBILITY TOGGLE ================= */
+  window.toggleTrackerVisibility = function (trackerId, visible) {
+    // Update local visibility state
+    trackerVisibility[trackerId] = visible;
+    
+    // Update group settings
+    if (activeGroup && groupSettings[activeGroup] && groupSettings[activeGroup][trackerId]) {
+      groupSettings[activeGroup][trackerId].visible = visible;
+      localStorage.setItem('groupSettings', JSON.stringify(groupSettings));
+    }
+    
+    // Update polyline visibility
+    if (trackerPolylines[trackerId]) {
+      if (visible) {
+        polylineLayer.addLayer(trackerPolylines[trackerId]);
+      } else {
+        polylineLayer.removeLayer(trackerPolylines[trackerId]);
+      }
+    }
 
-    // -------- Images ----------
-    function displayImages(images) {
-        imagesGrid.innerHTML = '';
-        if (!Array.isArray(images) || images.length === 0) {
-            imagesGrid.innerHTML = `<div class="no-data-message"><p>No images available for this drone</p></div>`;
-            return;
+    // Update markers visibility
+    (trackerMarkers[trackerId] || []).forEach(m => {
+      if (visible) {
+        markersLayer.addLayer(m);
+      } else {
+        markersLayer.removeLayer(m);
+      }
+    });
+    
+    updateLegend();
+    updateMapBounds();
+  };
+
+  /* ================= COLOR CHANGE ================= */
+  window.changeTrackerColor = function (trackerId, color) {
+    // Update color in map
+    trackerColorMap[trackerId] = color;
+    
+    // Update group settings
+    if (activeGroup && groupSettings[activeGroup] && groupSettings[activeGroup][trackerId]) {
+      groupSettings[activeGroup][trackerId].color = color;
+      localStorage.setItem('groupSettings', JSON.stringify(groupSettings));
+    }
+
+    // Update polyline color if visible
+    if (trackerPolylines[trackerId] && isTrackerVisible(trackerId)) {
+      trackerPolylines[trackerId].setStyle({ color: color });
+    }
+
+    // Update marker colors if visible (excluding start/end markers)
+    (trackerMarkers[trackerId] || []).forEach(m => {
+      if (m.options.icon && isTrackerVisible(trackerId)) {
+        // Check if it's a dot marker (not start/end)
+        const iconHtml = m.options.icon.options?.html || '';
+        if (iconHtml.includes('border-radius:50%')) {
+          m.setIcon(createDotIcon(color, 8));
         }
+      }
+    });
 
-        images.forEach((imgUrl) => {
-            if (typeof imgUrl !== 'string' || !imgUrl.startsWith('http')) return;
+    updateLegend();
+  };
 
-            const imgContainer = document.createElement('div');
-            imgContainer.className = 'image-container';
+  /* ================= HELPERS ================= */
+  function clearMap() {
+    markersLayer.clearLayers();
+    polylineLayer.clearLayers();
+    Object.keys(trackerPolylines).forEach(k => delete trackerPolylines[k]);
+    Object.keys(trackerMarkers).forEach(k => delete trackerMarkers[k]);
+    updateLegend();
+  }
 
-            const imgLink = document.createElement('a');
-            imgLink.href = imgUrl;
-            imgLink.target = '_blank';
-
-            const img = document.createElement('img');
-            img.src = imgUrl;
-            img.alt = 'Drone image';
-            img.loading = 'lazy';
-
-            const imgInfo = document.createElement('div');
-            imgInfo.className = 'image-info';
-            const timestamp = extractTimestampFromUrl(imgUrl);
-            if (timestamp) imgInfo.textContent = timestamp;
-
-            imgLink.appendChild(img);
-            imgContainer.appendChild(imgLink);
-            imgContainer.appendChild(imgInfo);
-            imagesGrid.appendChild(imgContainer);
-        });
+  function updateLastUpdatedTime() {
+    if (lastUpdatedDiv && lastUpdateTime) {
+      lastUpdatedDiv.textContent = `Last updated: ${lastUpdateTime.toLocaleString()}`;
     }
+  }
 
-    async function exportImagesAsZip() {
-        if (!fetchedImages || fetchedImages.length === 0) {
-            showStatus('No images available to export', 'warning');
-            return;
-        }
+  function showStatus(msg, type) {
+    if (!statusMessage) return;
+    statusMessage.textContent = msg;
+    statusMessage.className = `status-${type}`;
+    if (type !== 'loading') setTimeout(() => statusMessage.textContent = '', 4000);
+  }
 
-        try {
-            showStatus('Preparing images for download...', 'loading');
-            const zip = new JSZip();
-            const folder = zip.folder("drone_images");
+  function formatTimestamp(ts) {
+    return new Date(ts).toLocaleString();
+  }
 
-            for (let i = 0; i < fetchedImages.length; i++) {
-                const url = fetchedImages[i];
-                const response = await fetch(url);
-                const blob = await response.blob();
-                const extension = url.split('.').pop().split(/\#|\?/)[0];
-                folder.file(`image_${i + 1}.${extension}`, blob);
-            }
-
-            const content = await zip.generateAsync({ type: "blob" });
-            saveAs(content, `drone_images_${trackerInput.value || 'export'}_${new Date().toISOString().slice(0, 10)}.zip`);
-
-            showStatus('Images exported successfully', 'success');
-        } catch (error) {
-            console.error("Image Export Error:", error);
-            showStatus("Image export failed: " + error.message, "error");
-        }
+  function updateMapBounds() {
+    const allVisiblePoints = [];
+    
+    Object.keys(trackerPolylines).forEach(trackerId => {
+      if (isTrackerVisible(trackerId) && trackerPolylines[trackerId]._latlngs) {
+        allVisiblePoints.push(...trackerPolylines[trackerId]._latlngs);
+      }
+    });
+    
+    if (allVisiblePoints.length > 0) {
+      map.fitBounds(allVisiblePoints, { padding: [40, 40] });
     }
+  }
 
-    function handleEmptyDataResponse(trackerId) {
-        showStatus(`No data found for tracker ID: ${trackerId}`, 'warning');
-        displayDroneInfo(trackerId);
-        showMessageOnMap(`No data available for ${trackerId}`, 'info');
-    }
+  /* ================= EXPOSE FUNCTIONS TO WINDOW ================= */
+  // These functions will be called from group detail popup
+  window.setActiveGroup = function(groupName) {
+    activeGroup = groupName;
+  };
 
-    function extractTimestampFromUrl(url) {
-        try {
-            const match = url.match(/(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
-            if (match) {
-                const [_, year, month, day, hour, minute, second] = match;
-                return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`).toLocaleString();
-            }
-            return null;
-        } catch {
-            return null;
-        }
-    }
+  window.updateTrackerVisibilityFromGroup = function(trackerId, isVisible) {
+    window.toggleTrackerVisibility(trackerId, isVisible);
+  };
 
-    function formatTimestamp(timestamp) {
-        if (!timestamp) return 'Unknown';
-        try {
-            if (typeof timestamp === 'string' && timestamp.match(/^\d{2}-\d{2}-\d{4} \d{2}:\d{2}:\d{2}$/)) {
-                const [datePart, timePart] = timestamp.split(' ');
-                const [day, month, year] = datePart.split('-');
-                return new Date(`${year}-${month}-${day}T${timePart}`).toLocaleString();
-            }
-            return new Date(timestamp).toLocaleString();
-        } catch {
-            return String(timestamp);
-        }
-    }
+  window.updateTrackerColorFromGroup = function(trackerId, color) {
+    window.changeTrackerColor(trackerId, color);
+  };
 
-    function updateLastUpdatedTime() {
-        if (!lastUpdateTime) return;
-        lastUpdatedDiv.textContent = `Last updated: ${lastUpdateTime.toLocaleString()}`;
-    }
+  window.handleFetch = function(trackerId) {
+    fetchSingleTracker(trackerId, true);
+  };
 
-    function showMessageOnMap(message, type) {
-        const center = map.getCenter();
-        markersLayer.clearLayers();
+  // Initialize global trajectoryOverlays object
+  window.trajectoryOverlays = {};
 
-        const icon = L.divIcon({
-            className: `map-message map-message-${type}`,
-            html: `<div>${message}</div>`,
-            iconSize: [200, 40]
-        });
-
-        L.marker(center, {
-            icon: icon,
-            zIndexOffset: 1000
-        }).addTo(markersLayer);
-        map.setView(center, 12);
-    }
-
-    function showErrorOnMap(error) {
-        showMessageOnMap(`Error: ${error}`, 'error');
-    }
-
-    function clearData() {
-        droneInfoBody.innerHTML = '';
-        imagesGrid.innerHTML = '';
-        markersLayer.clearLayers();
-        polylineLayer.clearLayers();
-        fetchedData = [];
-        pathPoints = [];
-        fetchedImages = [];
-    }
-
-    function showStatus(message, type) {
-        if (!statusMessage) return;
-        statusMessage.textContent = message;
-        statusMessage.className = `status-${type}`;
-        if (type !== 'loading') {
-            setTimeout(() => {
-                statusMessage.textContent = '';
-                statusMessage.className = '';
-            }, 5000);
-        }
-    }
-
-    function exportToCSV() {
-        const rows = fetchedData;
-        if (!rows || rows.length === 0) {
-            showStatus('No data available to export', 'warning');
-            return;
-        }
-
-        try {
-            const headers = Object.keys(rows[0]);
-            const csvContent = [
-                headers.join(','),
-                ...rows.map(row =>
-                    headers.map(field =>
-                        `"${String(row[field] ?? '').replace(/"/g, '""')}"`
-                    ).join(',')
-                )
-            ].join('\n');
-
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `drone_data_${trackerInput.value || 'export'}_${new Date().toISOString().slice(0, 10)}.csv`;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-
-            showStatus('Data exported successfully', 'success');
-        } catch (error) {
-            console.error('Export Error:', error);
-            showStatus('Export failed: ' + error.message, 'error');
-        }
-    }
-
-    // (The older /exportImages handler kept for backward compatibility)
-    const legacyExportBtn = document.getElementById("exportImages");
-    if (legacyExportBtn) {
-        legacyExportBtn.addEventListener("click", async () => {
-            try {
-                let images = Array.from(document.querySelectorAll("#imageContainer img")).map(img => img.src);
-                if (images.length === 0) {
-                    alert("No images available to export!");
-                    return;
-                }
-                let response = await fetch("/export_images", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ images })
-                });
-                if (!response.ok) {
-                    let err = await response.text();
-                    console.error("❌ Export API failed:", err);
-                    alert("Failed to export images!");
-                    return;
-                }
-                let blob = await response.blob();
-                let link = document.createElement("a");
-                link.href = window.URL.createObjectURL(blob);
-                link.download = "exported_images.zip";
-                link.click();
-            } catch (error) {
-                console.error("💥 Error in exportImages click handler:", error);
-                alert("Error exporting images. Check console/logs.");
-            }
-        });
-    }
 });

@@ -6769,6 +6769,50 @@
 // });
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 document.addEventListener('DOMContentLoaded', function () {
   /* ================= DOM ================= */
   const fetchBtn = document.getElementById('fetch-btn');
@@ -6788,6 +6832,38 @@ document.addEventListener('DOMContentLoaded', function () {
     maxRetryCount: 3,
     retryDelay: 1000
   };
+
+  /* ================= GROUP AUTO-REFRESH ================= */
+
+let groupAutoInterval = null;
+let groupAutoSeconds = 10000; // 10 sec default
+
+function startGroupAutoRefresh() {
+  if (groupAutoInterval) clearInterval(groupAutoInterval);
+
+  groupAutoInterval = setInterval(() => {
+    if (!activeGroup) {
+      console.log("⚠️ No active group, skipping auto-refresh");
+      return;
+    }
+    console.log("🔄 Auto-refreshing group:", activeGroup);
+
+    const event = new Event('click');
+    document.getElementById('fetchGroupBtn').dispatchEvent(event);
+
+  }, groupAutoSeconds);
+
+  console.log("▶️ Group auto-refresh started");
+}
+
+function stopGroupAutoRefresh() {
+  if (groupAutoInterval) {
+    clearInterval(groupAutoInterval);
+    groupAutoInterval = null;
+    console.log("⏹ Group auto-refresh stopped");
+  }
+}
+
 
   /* ================= MAP ================= */
   const map = L.map('map').setView([23.0225, 72.5714], 13);
@@ -6837,6 +6913,8 @@ document.addEventListener('DOMContentLoaded', function () {
     return trackerVisibility[trackerId] !== false;
   }
 
+  
+  
   /* ================= REAL-TIME AUTO-UPDATE FUNCTIONS ================= */
   function startRealtimeUpdates() {
     if (realtimeUpdateInterval) {
@@ -7182,6 +7260,7 @@ function displayAllTrackerData(trackerId) {
   }
 }
 
+
   /* ================= GROUP FETCH ================= */
   window.fetchGroupTrackers = function (trackerIds, enableRealtime = false) {
     if (!trackerIds?.length) {
@@ -7492,3 +7571,106 @@ function clearMap() {
     stopRealtimeUpdates();
   });
 });
+
+/* ================= SENSOR DATA FETCH ================= */
+  async function fetchSensorData(sensorId) {
+    try {
+        const res = await fetch('/api/sensor/all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sensor_id: sensorId })
+        });
+
+        if (!res.ok) throw new Error(`Failed to fetch sensor ${sensorId}`);
+
+        const data = await res.json();
+        const points = data.points || [];
+
+        // Ensure sensorLayer exists
+        if (!window.sensorLayer) {
+            window.sensorLayer = L.layerGroup().addTo(map);
+        } else {
+            window.sensorLayer.clearLayers();
+        }
+
+        points.forEach(p => {
+            const lat = parseFloat(p.Latitude);
+            const lon = parseFloat(p.Longitude);
+            if (!isNaN(lat) && !isNaN(lon)) {
+                const marker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: 'sensor-marker',
+                        html: `<div style="background:#ff5722;width:12px;height:12px;border-radius:50%;border:2px solid white;"></div>`,
+                        iconSize: [12, 12],
+                        iconAnchor: [6, 6]
+                    })
+                }).bindPopup(`
+                    <b>Sensor ID:</b> ${p.SensorId}<br>
+                    <b>Timestamp:</b> ${p.Timestamp}<br>
+                    <b>Moisture:</b> ${p.Moisture}<br>
+                    <b>Temperature:</b> ${p.Temperature}<br>
+                    <b>EC:</b> ${p.EC}<br>
+                    <b>PHValue:</b> ${p.PHValue}<br>
+                    <b>Nitrogen:</b> ${p.Nitrogen}<br>
+                    <b>Phosphorous:</b> ${p.Phosphorous}<br>
+                    <b>Potassium:</b> ${p.Potassium}<br>
+                    ${p.Altitude ? `<b>Altitude:</b> ${p.Altitude}<br>` : ''}
+                    ${p.Maplink ? `<a href="${p.Maplink}" target="_blank">View on Map</a>` : ''}
+                `);
+                window.sensorLayer.addLayer(marker);
+            }
+        });
+
+        // Populate sensor table
+        const tableBody = document.getElementById('sensorTableBody');
+        if (tableBody) {
+            tableBody.innerHTML = '';
+            points.forEach(p => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${p.SensorId}</td>
+                    <td>${p.Timestamp}</td>
+                    <td>${p.Moisture}</td>
+                    <td>${p.Temperature}</td>
+                    <td>${p.EC}</td>
+                    <td>${p.PHValue}</td>
+                    <td>${p.Nitrogen}</td>
+                    <td>${p.Phosphorous}</td>
+                    <td>${p.Potassium}</td>
+                `;
+                tableBody.appendChild(row);
+            });
+        }
+
+        // Fit map to markers
+        if (points.length > 0) {
+            const latlngs = points
+                .map(p => [parseFloat(p.Latitude), parseFloat(p.Longitude)])
+                .filter(p => !isNaN(p[0]) && !isNaN(p[1]));
+            if (latlngs.length > 0) {
+                map.fitBounds(L.latLngBounds(latlngs), { padding: [50, 50] });
+            }
+        }
+
+        console.log(`Loaded ${points.length} points for Sensor ${sensorId}`);
+    } catch (err) {
+        console.error("Error fetching sensor data:", err);
+    }
+}
+
+window.fetchSensorData = fetchSensorData;
+
+// Expose globally
+window.fetchSensorData = fetchSensorData;
+
+
+
+// Save auto-update state before unload
+window.addEventListener('beforeunload', () => {
+    localStorage.setItem('auto_update_enabled', JSON.stringify(realtimeUpdateConfig.trackers.size > 0));
+    localStorage.setItem('auto_update_trackers', JSON.stringify(Array.from(realtimeUpdateConfig.trackers)));
+    stopRealtimeUpdates();
+});
+
+
+

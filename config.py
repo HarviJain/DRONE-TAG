@@ -35,5 +35,16 @@ class Config:
     SECRET_KEY = os.urandom(24)
     
 
-    AWS_API_ENDPOINT = os.getenv('AWS_API_ENDPOINT',
-        'https://7mmfy9xgk9.execute-api.ap-south-1.amazonaws.com/json/data')
+    # AWS_API_ENDPOINT = os.getenv('AWS_API_ENDPOINT',
+    #     'https://7mmfy9xgk9.execute-api.ap-south-1.amazonaws.com/json/data')
+# Drone trajectory API (POST)
+    AWS_TRAJECTORY_API = os.getenv(
+        'AWS_TRAJECTORY_API',
+        'https://7mmfy9xgk9.execute-api.ap-south-1.amazonaws.com/json/data'
+    )
+
+    # Sensor data API (GET)
+    AWS_SENSOR_API = os.getenv(
+        'AWS_SENSOR_API',
+        'https://pg2y9zc74l.execute-api.ap-south-1.amazonaws.com/data/json'
+    )

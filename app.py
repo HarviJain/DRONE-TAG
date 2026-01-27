@@ -586,6 +586,111 @@ def get_trajectory():
         return jsonify({"error": f"Internal server error: {str(e)}"}), 500
 
 # added by Henil Patel
+# @app.route("/api/sensor/data", methods=["GET"])
+# def get_sensor_data():
+#     sensor_id = request.args.get("sensor_id")
+
+#     if not sensor_id:
+#         return jsonify({"error": "sensor_id is required"}), 400
+
+#     try:
+#         aws_response = requests.post(
+#             AWS_SENSOR_API,
+#             headers={
+#                 "Content-Type": "application/json",
+#                 "SensorId": sensor_id   # ✅ REQUIRED BY AWS
+#             },
+#             timeout=10
+#         )
+
+#         aws_response.raise_for_status()
+#         raw = aws_response.json()
+
+#         # Handle Lambda proxy format
+#         if isinstance(raw, dict) and "body" in raw:
+#             data = json.loads(raw["body"])
+#         else:
+#             data = raw
+
+#         return jsonify(data), 200
+
+#     except Exception as e:
+#         logging.exception("Sensor API failed")
+#         return jsonify({"error": str(e)}), 500
+
+
+# henil 
+# @app.route("/api/sensor/data", methods=["GET"])
+# def get_sensor_data():
+#     sensor_id = request.args.get("sensor_id")
+
+#     if not sensor_id:
+#         return jsonify({"error": "sensor_id is required"}), 400
+
+#     try:
+#         aws_response = requests.post(
+#             AWS_SENSOR_API,
+#             headers={
+#                 "Content-Type": "application/json",
+#                 "SensorId": sensor_id
+#             },
+#             timeout=10
+#         )
+#         aws_response.raise_for_status()
+#         raw = aws_response.json()
+
+#         # Handle Lambda proxy format
+#         if isinstance(raw, dict) and "body" in raw:
+#             body = json.loads(raw["body"])
+#         else:
+#             body = raw
+
+#         telemetry = body.get("Telemetry", [])
+
+#         formatted_rows = []
+
+#         for row in telemetry:
+#             try:
+#                 lat = float(row.get("Latitude"))
+#                 lon = float(row.get("Longitude"))
+#             except (TypeError, ValueError):
+#                 continue
+
+#             # Timestamp normalization (Excel compatible)
+#             ts_raw = row.get("Timestamp")
+#             try:
+#                 ts = parse_datetime(ts_raw).strftime("%Y-%m-%d %H:%M:%S")
+#             except Exception:
+#                 ts = None
+
+#             formatted_rows.append({
+#                 "Altitude": float(row.get("Altitude", 0)),
+#                 "EC": float(row.get("EC", 0)),
+#                 "Latitude": lat,
+#                 "Longitude": lon,
+#                 "Maplink": f"https://maps.google.com/?q={lat},{lon}",
+#                 "Moisture": float(row.get("Moisture", 0)),
+#                 "Nitrogen": float(row.get("Nitrogen", 0)),
+#                 "Phosphorous": float(row.get("Phosphorous", 0)),
+#                 "PHValue": float(row.get("PHValue", 0)),
+#                 "Potassium": float(row.get("Potassium", 0)),
+#                 "SatelliteFix": row.get("SatelliteFix"),
+#                 "SensorId": row.get("SensorId", sensor_id),
+#                 "Temperature": float(row.get("Temperature", 0)),
+#                 "Timestamp": ts
+#             })
+
+#         return jsonify({
+#             "SensorId": sensor_id,
+#             "rows": formatted_rows
+#         }), 200
+
+#     except Exception as e:
+#         logging.exception("Sensor API failed")
+#         return jsonify({"error": str(e)}), 500
+
+# added by harvi 
+# ================= SENSOR API ROUTE =================
 @app.route("/api/sensor/data", methods=["GET"])
 def get_sensor_data():
     sensor_id = request.args.get("sensor_id")
@@ -598,21 +703,67 @@ def get_sensor_data():
             AWS_SENSOR_API,
             headers={
                 "Content-Type": "application/json",
-                "SensorId": sensor_id   # ✅ REQUIRED BY AWS
+                "SensorId": sensor_id
             },
             timeout=10
         )
-
         aws_response.raise_for_status()
         raw = aws_response.json()
 
-        # Handle Lambda proxy format
+        # Handle Lambda proxy response
         if isinstance(raw, dict) and "body" in raw:
-            data = json.loads(raw["body"])
+            body = raw["body"]
+            if isinstance(body, str):
+                body = json.loads(body)
         else:
-            data = raw
+            body = raw
 
-        return jsonify(data), 200
+        # Determine telemetry data structure
+        if isinstance(body, list):
+            telemetry = body
+        elif isinstance(body, dict):
+            telemetry = body.get("Telemetry", [])
+        else:
+            telemetry = []
+
+        formatted_rows = []
+
+        for row in telemetry:
+            try:
+                lat = float(row.get("Latitude"))
+                lon = float(row.get("Longitude"))
+            except (TypeError, ValueError):
+                continue
+
+            # Timestamp normalization (Excel compatible)
+            ts_raw = row.get("Timestamp")
+            try:
+                ts = parse_datetime(ts_raw).strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                ts = None
+
+            formatted_rows.append({
+                "SensorId": row.get("SensorId", sensor_id),
+                "Timestamp": ts,
+                "Latitude": lat,
+                "Longitude": lon,
+                "Altitude": float(row.get("Altitude") or 0),
+                "EC": float(row.get("EC") or 0),
+                "Moisture": float(row.get("Moisture") or 0),
+                "Nitrogen": float(row.get("Nitrogen") or 0),
+                "Phosphorous": float(row.get("Phosphorous") or 0),
+                "PHValue": float(row.get("PHValue") or 0),
+                "Potassium": float(row.get("Potassium") or 0),
+                "Temperature": float(row.get("Temperature") or 0),
+                "SatelliteFix": row.get("SatelliteFix"),
+                "Maplink": f"https://maps.google.com/?q={lat},{lon}"
+            })
+
+        return jsonify({
+            "SensorId": sensor_id,
+            "rows": formatted_rows,
+            "total_records": len(formatted_rows)
+        }), 200
 
     except Exception as e:
         logging.exception("Sensor API failed")

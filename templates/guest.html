@@ -2531,6 +2531,15 @@ document.addEventListener('keydown', (e) => {
 
 
 
+
+
+
+
+
+
+
+
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2727,18 +2736,11 @@ document.addEventListener('keydown', (e) => {
   align-items: center;
   justify-content: center;
 }
-
-
-
-
 .sidebar-item:hover .sidebar-icon {
   border-color: #4f46e5;
   color: #4f46e5;
   background: #a9adafff;
 }
-
-
-
     .sidebar-item span {
       font-size: 13px;
       color: #374151;
@@ -2846,7 +2848,7 @@ document.addEventListener('keydown', (e) => {
     }
 
     .tag-popup.collapsed {
-      max-height: 0 !important;
+      max-height = 0 !important;
     }
 
     .tag-popup-header {
@@ -3488,8 +3490,6 @@ document.addEventListener('keydown', (e) => {
 </div>
 
 </header>
-
-
 <div class="overlay" id="overlay"></div>
 
 <!-- ================= SIDEBAR ================= -->
@@ -3687,16 +3687,17 @@ document.addEventListener('keydown', (e) => {
           <th>Moisture</th>
           <th>Temperature</th>
           <th>EC</th>
-          <th>pH Value</th>
+          <th>pH</th>
           <th>Nitrogen</th>
           <th>Phosphorous</th>
           <th>Potassium</th>
-          <th>Satellite Fix</th>
+          <th>Sat Fix</th>
+          <!--<th>Altitude</th>-->
         </tr>
       </thead>
       <tbody id="sensorDataTableBody">
         <tr class="no-data-row">
-          <td colspan="12">No sensor data available. Fetch a sensor first.</td>
+          <td colspan="13">No sensor data available. Fetch a sensor first.</td>
         </tr>
       </tbody>
     </table>
@@ -3752,8 +3753,6 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   });
 });
-
-
 
 /* ================= MOBILE MENU ================= */
 const mobileMenuToggle = document.getElementById('mobileMenuToggle');
@@ -3927,175 +3926,103 @@ sensorTablePanelHeader.addEventListener('click', (e) => {
   e.stopPropagation();
   const isMinimized = sensorTablePanel.classList.toggle('minimized');
   sensorTablePanelChevron.classList.toggle('rotated', isMinimized);
-  
-  if (isMinimized) {
-    sensorTableContainer.style.display = 'none';
-  } else {
-    sensorTableContainer.style.display = 'block';
-  }
+  sensorTableContainer.style.display = isMinimized ? 'none' : 'block';
 });
 
-// Store sensor table data - Array to handle multiple entries for same sensor
+// Store sensor historical readings
 window.sensorTableData = {};
 
-// Function to update sensor data table
+// Unified timestamp formatter
+function normalizeTimestamp(ts) {
+  if (!ts) return null;
+
+  // convert "24-01-2026 10:16:00" → "2026-01-24T10:16:00"
+  if (typeof ts === "string" && ts.includes("-")) {
+    const [d, m, y] = ts.split(" ")[0].split("-");
+    const time = ts.split(" ")[1] || "00:00:00";
+    return `${y}-${m}-${d}T${time}`;
+  }
+  return ts;
+}
+
+// Main update function - FROM 1ST CODE
 window.updateSensorTable = function(sensorId, sensorReadings) {
+
+  // Normalize array
   if (sensorId && sensorReadings) {
-    // Ensure sensorReadings is an array
     if (!Array.isArray(sensorReadings)) {
       sensorReadings = [sensorReadings];
     }
-    
-    // Store all readings for this sensor
+
     if (!window.sensorTableData[sensorId]) {
       window.sensorTableData[sensorId] = [];
     }
-    
-    // Add new readings to the beginning (most recent first)
+
     sensorReadings.forEach(reading => {
-      // Add timestamp if not present
-      if (!reading.timestamp && !reading.Timestamp) {
-        reading.timestamp = new Date().toISOString();
-      }
-      
-      // Add sensor ID if not present
-      if (!reading.sensorId && !reading.SensorId) {
-        reading.sensorId = sensorId;
-      }
-      
-      // Check if this reading already exists (by Id or timestamp)
-      const exists = window.sensorTableData[sensorId].some(existing => 
-        (existing.Id && existing.Id === reading.Id) || 
-        (existing.timestamp && existing.timestamp === reading.timestamp) ||
-        (existing.Timestamp && existing.Timestamp === reading.Timestamp)
+      if (!reading.SensorId) reading.SensorId = sensorId;
+      if (!reading.Timestamp) reading.Timestamp = new Date().toISOString();
+      reading.Timestamp = normalizeTimestamp(reading.Timestamp);
+
+      // Dedupe by Id or timestamp
+      const exists = window.sensorTableData[sensorId].some(r =>
+        (r.Id && r.Id === reading.Id) ||
+        (r.Timestamp && r.Timestamp === reading.Timestamp)
       );
-      
+
       if (!exists) {
-        window.sensorTableData[sensorId].unshift(reading); // Add to beginning
+        window.sensorTableData[sensorId].unshift(reading);
       }
     });
-    
-    // Keep only last 50 entries per sensor to prevent memory issues
+
+    // Limit history
     if (window.sensorTableData[sensorId].length > 50) {
-      window.sensorTableData[sensorId] = window.sensorTableData[sensorId].slice(0, 50);
+      window.sensorTableData[sensorId].length = 50;
     }
   }
-  
-  const tbody = document.getElementById('sensorDataTableBody');
-  const thead = document.getElementById('sensorDataTableHeader');
-  
-  // Collect all sensor data from all sensors
+
+  const tbody = document.getElementById("sensorDataTableBody");
+
   const allSensorData = [];
-  Object.keys(window.sensorTableData).forEach(sid => {
-    window.sensorTableData[sid].forEach(reading => {
-      allSensorData.push(reading);
-    });
-  });
-  
+  Object.values(window.sensorTableData).forEach(arr => arr.forEach(r => allSensorData.push(r)));
+
   if (allSensorData.length === 0) {
     tbody.innerHTML = `
       <tr class="no-data-row">
-        <td colspan="12">No sensor data available. Fetch a sensor first.</td>
-      </tr>
-    `;
+        <td colspan="13" style="text-align:center;">No sensor data available. Fetch a sensor first.</td>
+      </tr>`;
     return;
   }
-  
-  // Clear and rebuild table
-  tbody.innerHTML = '';
-  
-  // Show all readings (most recent first)
-  allSensorData.forEach((sensorData, index) => {
-    const row = document.createElement('tr');
-    
-    // Sensor ID
-    const idCell = document.createElement('td');
-    idCell.className = 'sensor-id-cell';
-    idCell.textContent = sensorData.sensorId || sensorData.SensorId || sensorId || 'N/A';
-    row.appendChild(idCell);
-    
-    // Timestamp
-    const timeCell = document.createElement('td');
-    const timestamp = sensorData.timestamp || sensorData.Timestamp;
-    if (timestamp) {
-      try {
-        timeCell.textContent = new Date(timestamp).toLocaleString();
-      } catch (e) {
-        timeCell.textContent = timestamp;
-      }
-    } else {
-      timeCell.textContent = '-';
-    }
-    row.appendChild(timeCell);
-    
-    // EC
-    const ecCell = document.createElement('td');
-    ecCell.textContent = sensorData.EC !== undefined ? sensorData.EC : '-';
-    row.appendChild(ecCell);
-    
-    // Moisture
-    const moistureCell = document.createElement('td');
-    moistureCell.textContent = sensorData.Moisture !== undefined ? sensorData.Moisture : '-';
-    row.appendChild(moistureCell);
-    
-    // Nitrogen
-    const nitrogenCell = document.createElement('td');
-    nitrogenCell.textContent = sensorData.Nitrogen !== undefined ? sensorData.Nitrogen : '-';
-    row.appendChild(nitrogenCell);
-    
-    // Phosphorous
-    const phosphorousCell = document.createElement('td');
-    phosphorousCell.textContent = sensorData.Phosphorous !== undefined ? sensorData.Phosphorous : '-';
-    row.appendChild(phosphorousCell);
-    
-    // PH Value
-    const phCell = document.createElement('td');
-    phCell.textContent = sensorData.PHValue !== undefined ? sensorData.PHValue : '-';
-    row.appendChild(phCell);
-    
-    // Potassium
-    const potassiumCell = document.createElement('td');
-    potassiumCell.textContent = sensorData.Potassium !== undefined ? sensorData.Potassium : '-';
-    row.appendChild(potassiumCell);
-    
-    // Temperature
-    const tempCell = document.createElement('td');
-    tempCell.textContent = sensorData.Temperature !== undefined ? sensorData.Temperature : '-';
-    row.appendChild(tempCell);
-    
-    // Id (if available)
-    const recordIdCell = document.createElement('td');
-    recordIdCell.textContent = sensorData.Id !== undefined ? sensorData.Id : '-';
-    recordIdCell.style.color = '#9ca3af';
-    recordIdCell.style.fontSize = '11px';
-    row.appendChild(recordIdCell);
-    
-    // Latitude
-    const latCell = document.createElement('td');
-    latCell.textContent = sensorData.Latitude !== undefined ? sensorData.Latitude : '-';
-    row.appendChild(latCell);
-    
-    // Longitude
-    const lonCell = document.createElement('td');
-    lonCell.textContent = sensorData.Longitude !== undefined ? sensorData.Longitude : '-';
-    row.appendChild(lonCell);
-    
-    // Satellite Fix
-    const satCell = document.createElement('td');
-    satCell.textContent = sensorData.SatelliteFix !== undefined ? sensorData.SatelliteFix : '-';
-    row.appendChild(satCell);
-    
-    tbody.appendChild(row);
+
+  // Sort latest first
+  allSensorData.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+
+  tbody.innerHTML = "";
+
+  allSensorData.forEach(sensorData => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="sensor-id-cell">${sensorData.SensorId ?? "-"}</td>
+      <td>${new Date(sensorData.Timestamp).toLocaleString()}</td>
+      <td>${sensorData.Moisture ?? "-"}</td>
+      <td>${sensorData.Temperature ?? "-"}</td>
+      <td>${sensorData.EC ?? "-"}</td>
+      <td>${sensorData.PHValue ?? "-"}</td>
+      <td>${sensorData.Nitrogen ?? "-"}</td>
+      <td>${sensorData.Phosphorous ?? "-"}</td>
+      <td>${sensorData.Potassium ?? "-"}</td>
+      <td>${sensorData.Latitude ?? "-"}</td>
+      <td>${sensorData.Longitude ?? "-"}</td>
+      <td>${sensorData.SatelliteFix ?? "-"}</td>
+      <td style="color:#9ca3af;font-size:11px;">${sensorData.Id ?? "-"}</td>
+    `;
+    tbody.appendChild(tr);
   });
-  
-  // Show sensor panel if minimized
-  const sensorPanel = document.getElementById('sensorTablePanel');
-  if (sensorPanel && sensorPanel.classList.contains('minimized')) {
-    sensorPanel.classList.remove('minimized');
-    const chevron = document.getElementById('sensorTablePanelChevron');
-    if (chevron) chevron.classList.remove('rotated');
-    const container = document.getElementById('sensorTableContainer');
-    if (container) container.style.display = 'block';
+
+  // auto expand panel when data arrives
+  if (sensorTablePanel.classList.contains('minimized')) {
+    sensorTablePanel.classList.remove('minimized');
+    sensorTablePanelChevron.classList.remove('rotated');
+    sensorTableContainer.style.display = "block";
   }
 };
 
@@ -4122,8 +4049,7 @@ realtimeTablePanelHeader.addEventListener('click', (e) => {
 // Store ALL points data for each tracker
 window.realtimeTableDataAllPoints = {};
 
-// Function to add ALL points for a tracker - THIS IS THE CORRECT FUNCTION NAME
-// Function to add ALL points for a tracker - THIS IS THE CORRECT FUNCTION NAME
+// Function to add ALL points for a tracker
 window.updateRealtimeTableAllPoints = function(trackerId, pointsArray, selectedParams = null) {
   console.log(`updateRealtimeTableAllPoints called with trackerId: ${trackerId}, pointsArray:`, pointsArray);
   
@@ -4179,7 +4105,7 @@ window.updateRealtimeTableAllPoints = function(trackerId, pointsArray, selectedP
   // Update the table display
   updateRealtimeTableWithAllPoints();
 };
-// Function to update table with ALL points
+
 // Function to update table with ALL points
 function updateRealtimeTableWithAllPoints() {
   console.log('Updating real-time table with all points...');
@@ -5061,3 +4987,4 @@ document.addEventListener('keydown', (e) => {
 </script>
 </body>
 </html>
+

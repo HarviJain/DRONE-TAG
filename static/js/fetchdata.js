@@ -1196,6 +1196,7 @@ window.clearMap = function () {
 document.getElementById("sensorTableContainer").style.display = "block";
 
 // --- Updated Sensor History Table Renderer ---
+// --- Updated Sensor History Table Renderer ---
 function updateSensorTable(sensorData = null) {
   const tbody = document.getElementById("sensorDataTableBody");
   const thead = document.getElementById("sensorDataTableHeader");
@@ -1229,7 +1230,7 @@ function updateSensorTable(sensorData = null) {
   if (rows.length === 0) {
     tbody.innerHTML = `
       <tr class="no-data-row">
-        <td colspan="13" style="text-align:center;">No sensor data available. Fetch a sensor first.</td>
+        <td colspan="14" style="text-align:center;">No sensor data available. Fetch a sensor first.</td>
       </tr>`;
     return;
   }
@@ -1241,13 +1242,32 @@ function updateSensorTable(sensorData = null) {
     return new Date(dateB) - new Date(dateA);
   });
 
-  // --- Dynamically create table headers ---
-  const headers = [
-    'SensorId', 'Timestamp', 'Latitude', 'Longitude', 
+  // --- Dynamically create table headers from actual data keys ---
+  // First, collect all unique keys from all rows
+  const allKeys = new Set();
+  rows.forEach(row => {
+    Object.keys(row).forEach(key => {
+      allKeys.add(key);
+    });
+  });
+  
+  // Define the order we want columns to appear
+  const columnOrder = [
+    'SensorId', 'Timestamp', 'Latitude', 'Longitude', 'Altitude',
     'Moisture', 'Temperature', 'EC', 'PHValue',
-    'Nitrogen', 'Phosphorous', 'Potassium', 'SatelliteFix', 'Altitude'
+    'Nitrogen', 'Phosphorous', 'Potassium', 'SatelliteFix', 'Id', 'Maplink'
   ];
   
+  // Sort keys according to our preferred order
+  const headers = columnOrder.filter(key => allKeys.has(key));
+  
+  // Add any remaining keys that weren't in our order
+  allKeys.forEach(key => {
+    if (!headers.includes(key)) {
+      headers.push(key);
+    }
+  });
+
   const trHead = document.createElement("tr");
   headers.forEach(h => {
     const th = document.createElement("th");
@@ -1261,32 +1281,57 @@ function updateSensorTable(sensorData = null) {
     const tr = document.createElement("tr");
     headers.forEach(h => {
       const td = document.createElement("td");
+      const value = row[h];
 
       // Format coordinates nicely
       if (h.toLowerCase() === "latitude" || h.toLowerCase() === "longitude") {
-        td.textContent = row[h] !== undefined ? Number(row[h]).toFixed(6) : "-";
+        td.textContent = value !== undefined && value !== null ? Number(value).toFixed(6) : "-";
       }
       // Format Timestamp nicely
       else if (h.toLowerCase() === "timestamp") {
-        td.textContent = row[h] ? formatDate(row[h]) : "-";
+        td.textContent = value ? formatDate(value) : "-";
       }
       // Sensor ID with color
       else if (h.toLowerCase() === "sensorid") {
-        td.textContent = row[h] || "-";
+        td.textContent = value || "-";
         td.className = "sensor-id-cell";
-        td.style.color = getSensorColor(row[h]);
+        td.style.color = getSensorColor(value);
+        td.style.fontWeight = "600";
       }
-      // Altitude
+      // Altitude - check both "Altitude" and "altitude"
       else if (h.toLowerCase() === "altitude") {
-        td.textContent = row[h] ? `${Number(row[h]).toFixed(1)} m` : "-";
+        if (value !== undefined && value !== null && value !== "") {
+          const num = Number(value);
+          td.textContent = !isNaN(num) ? `${num.toFixed(1)} m` : value;
+        } else {
+          td.textContent = "-";
+        }
+      }
+      // Maplink - create clickable link
+      else if (h.toLowerCase() === "maplink") {
+        if (value && value.startsWith('http')) {
+          td.innerHTML = `<a href="${value}" target="_blank" style="color: #2563eb; text-decoration: none;">📍 View</a>`;
+        } else {
+          td.textContent = "-";
+        }
       }
       // Format other numeric values
       else if (['moisture', 'temperature', 'ec', 'phvalue', 'nitrogen', 'phosphorous', 'potassium'].includes(h.toLowerCase())) {
-        const num = Number(row[h]);
-        td.textContent = !isNaN(num) ? num.toFixed(2) : "-";
+        if (value !== undefined && value !== null) {
+          const num = Number(value);
+          td.textContent = !isNaN(num) ? num.toFixed(2) : value;
+        } else {
+          td.textContent = "-";
+        }
+      }
+      // ID column - smaller text
+      else if (h.toLowerCase() === "id") {
+        td.textContent = value || "-";
+        td.style.fontSize = "12px";
+        td.style.color = "#9ca3af";
       }
       else {
-        td.textContent = row[h] !== undefined && row[h] !== null ? row[h] : "-";
+        td.textContent = value !== undefined && value !== null ? value : "-";
       }
 
       tr.appendChild(td);
@@ -1317,6 +1362,7 @@ function formatSensorHeader(header) {
     'Timestamp': 'Timestamp',
     'Latitude': 'Latitude',
     'Longitude': 'Longitude',
+    'Altitude': 'Altitude',
     'Moisture': 'Moisture',
     'Temperature': 'Temperature',
     'EC': 'EC',
@@ -1325,11 +1371,32 @@ function formatSensorHeader(header) {
     'Phosphorous': 'Phosphorous',
     'Potassium': 'Potassium',
     'SatelliteFix': 'Sat Fix',
-    'Altitude': 'Altitude'
+    'Id': 'ID',
+    'Maplink': 'Map Link'
   };
   return map[header] || header;
 }
 
+// Add this function to ensure getSensorColor is available
+function getSensorColor(sensorId) {
+  if (!window.sensorColorMap) {
+    window.sensorColorMap = {};
+  }
+  
+  if (!window.sensorColorMap[sensorId]) {
+    const sensorColors = [
+      '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', 
+      '#EF476F', '#9D4EDD', '#FB5607', '#3A86FF', '#8338EC',
+      '#FF9E6D', '#A0E7E5', '#FFA8B5', '#C5F277', '#72DDF7'
+    ];
+    
+    const sensorIds = Object.keys(window.sensorColorMap);
+    const colorIndex = sensorIds.length % sensorColors.length;
+    window.sensorColorMap[sensorId] = sensorColors[colorIndex];
+  }
+  
+  return window.sensorColorMap[sensorId];
+}
 // --- Helper for timestamp formatting ---
 function formatDate(ts) {
   if (!ts) return "-";

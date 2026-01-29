@@ -2568,6 +2568,10 @@ document.addEventListener('keydown', (e) => {
       background: #f9fafb;
     }
 
+
+
+
+    
     /* ================= HEADER ================= */
     header {
   position: fixed;
@@ -3002,6 +3006,53 @@ document.addEventListener('keydown', (e) => {
       width: 320px;
     }
 
+ /* ================= NAVIC TOGGLE BUTTON IN SENSOR DATA TABLE PANEL ================= */
+
+        /* From Uiverse.io by Yaya12085 */ 
+    .switch {
+      position: relative;
+      height: 1.5rem;
+      width: 3rem;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      border-radius: 9999px;
+      background-color: rgba(100, 116, 139, 0.377);
+      transition: all .3s ease;
+    }
+
+    .switch:checked {
+      background-color: rgb(64, 18, 233);
+    }
+
+    .switch::before {
+      position: absolute;
+      content: "";
+      left: calc(1.5rem - 1.6rem);
+      top: calc(1.5rem - 1.6rem);
+      display: block;
+      height: 1.6rem;
+      width: 1.6rem;
+      cursor: pointer;
+      border: 1px solid rgba(100, 116, 139, 0.527);
+      border-radius: 9999px;
+      background-color: rgba(255, 255, 255, 1);
+      box-shadow: 0 3px 10px rgba(100, 116, 139, 0.327);
+      transition: all .3s ease;
+    }
+
+    .switch:hover::before {
+      box-shadow: 0 0 0px 8px rgba(0, 0, 0, .15)
+    }
+
+    .switch:checked:hover::before {
+      box-shadow: 0 0 0px 8px rgba(236, 72, 153, .15)
+    }
+
+    .switch:checked:before {
+      transform: translateX(100%);
+      border-color: rgb(50, 17, 243);
+    }
     /* ================= SENSOR DATA TABLE PANEL ================= */
     #sensorTablePanel {
       position: fixed;
@@ -3672,17 +3723,39 @@ document.addEventListener('keydown', (e) => {
   
  <!-- ================= SENSOR DATA TABLE PANEL ================= -->
 <div id="sensorTablePanel" class="minimized">
-  <div id="sensorTablePanelHeader">
+
+  <div id="sensorTablePanelHeader"
+       style="display:flex; justify-content:space-between; align-items:center;">
+
     <h2>Sensor Data Table</h2>
-    <i data-lucide="chevron-up" id="sensorTablePanelChevron" class="rotated"></i>
+
+    <!-- RIGHT CONTROLS -->
+    <div style="display:flex; align-items:center; gap:14px;">
+
+      <!-- NAVIC TOGGLE -->
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:13px; font-weight:500;">NAVIC</span>
+        <input type="checkbox"
+               id="navicToggle"
+               class="switch"
+               title="Toggle NAVIC Coordinates">
+      </div>
+
+      <!-- CHEVRON -->
+      <i data-lucide="chevron-up"
+         id="sensorTablePanelChevron"
+         class="rotated"></i>
+
+    </div>
   </div>
+
   <div id="sensorTableContainer" style="display: none;">
     <table id="sensorDataTable">
+
       <thead id="sensorDataTableHeader">
         <tr>
           <th>Sensor ID</th>
           <th>Timestamp</th>
-        
           <th>Moisture</th>
           <th>Temperature</th>
           <th>EC</th>
@@ -3690,20 +3763,25 @@ document.addEventListener('keydown', (e) => {
           <th>Nitrogen</th>
           <th>Phosphorous</th>
           <th>Potassium</th>
-          <th>Latitude</th>
-          <th>Longitude</th>
-          <th>Sat Fix</th>
-          <!--<th>Altitude</th>-->
+
+          <!-- NAVIC COLUMNS -->
+          <th class="navic-column">Latitude</th>
+          <th class="navic-column">Longitude</th>
+          <th class="navic-column">Sat Fix</th>
         </tr>
       </thead>
+
       <tbody id="sensorDataTableBody">
         <tr class="no-data-row">
           <td colspan="13">No sensor data available. Fetch a sensor first.</td>
         </tr>
       </tbody>
+
     </table>
   </div>
 </div>
+
+
   
   <!-- ================= REALTIME DATA TABLE PANEL ================= -->
   <div id="realtimeTablePanel" class="minimized">
@@ -3916,14 +3994,20 @@ document.getElementById("addSensorBtn").onclick = () => {
 };
 
 /* ================= SENSOR TABLE PANEL ================= */
+/* ================= SENSOR TABLE PANEL ================= */
 const sensorTablePanel = document.getElementById('sensorTablePanel');
 const sensorTablePanelHeader = document.getElementById('sensorTablePanelHeader');
 const sensorTablePanelChevron = document.getElementById('sensorTablePanelChevron');
 const sensorTableContainer = document.getElementById('sensorTableContainer');
 const sensorDataTable = document.getElementById('sensorDataTable');
+const navicToggle = document.getElementById('navicToggle');
 
 // Toggle panel visibility
 sensorTablePanelHeader.addEventListener('click', (e) => {
+  // Don't trigger panel toggle when clicking on the NAVIC toggle
+  if (e.target.closest('#navicToggle') || e.target.closest('span[style*="font-size: 13px"]')) {
+    return;
+  }
   e.stopPropagation();
   const isMinimized = sensorTablePanel.classList.toggle('minimized');
   sensorTablePanelChevron.classList.toggle('rotated', isMinimized);
@@ -3939,16 +4023,15 @@ function normalizeTimestamp(ts) {
 
   // convert "24-01-2026 10:16:00" → "2026-01-24T10:16:00"
   if (typeof ts === "string" && ts.includes("-")) {
-    const [d, m, y] = ts.split(" ")[0].split("-");
-    const time = ts.split(" ")[1] || "00:00:00";
+    const [dmy, time] = ts.split(" ");
+    const [d, m, y] = dmy.split("-");
     return `${y}-${m}-${d}T${time}`;
   }
   return ts;
 }
 
-// Main update function - FROM 1ST CODE
+// Main update function
 window.updateSensorTable = function(sensorId, sensorReadings) {
-
   // Normalize array
   if (sensorId && sensorReadings) {
     if (!Array.isArray(sensorReadings)) {
@@ -3982,14 +4065,16 @@ window.updateSensorTable = function(sensorId, sensorReadings) {
   }
 
   const tbody = document.getElementById("sensorDataTableBody");
+  const thead = document.getElementById("sensorDataTableHeader");
 
   const allSensorData = [];
   Object.values(window.sensorTableData).forEach(arr => arr.forEach(r => allSensorData.push(r)));
 
   if (allSensorData.length === 0) {
+    const colspan = navicToggle.checked ? 9 : 12; // 9 columns when NAVIC hidden, 12 when shown
     tbody.innerHTML = `
       <tr class="no-data-row">
-        <td colspan="13" style="text-align:center;">No sensor data available. Fetch a sensor first.</td>
+        <td colspan="${colspan}" style="text-align:center;">No sensor data available. Fetch a sensor first.</td>
       </tr>`;
     return;
   }
@@ -3997,27 +4082,14 @@ window.updateSensorTable = function(sensorId, sensorReadings) {
   // Sort latest first
   allSensorData.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
 
-  tbody.innerHTML = "";
-
-  allSensorData.forEach(sensorData => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="sensor-id-cell">${sensorData.SensorId ?? "-"}</td>
-      <td>${new Date(sensorData.Timestamp).toLocaleString()}</td>
-      <td>${sensorData.Moisture ?? "-"}</td>
-      <td>${sensorData.Temperature ?? "-"}</td>
-      <td>${sensorData.EC ?? "-"}</td>
-      <td>${sensorData.PHValue ?? "-"}</td>
-      <td>${sensorData.Nitrogen ?? "-"}</td>
-      <td>${sensorData.Phosphorous ?? "-"}</td>
-      <td>${sensorData.Potassium ?? "-"}</td>
-      <td>${sensorData.Latitude ?? "-"}</td>
-      <td>${sensorData.Longitude ?? "-"}</td>
-      <td>${sensorData.SatelliteFix ?? "-"}</td>
-      <td style="color:#9ca3af;font-size:11px;">${sensorData.Id ?? "-"}</td>
-    `;
-    tbody.appendChild(tr);
-  });
+  // Get NAVIC toggle state
+  const hideNavic = navicToggle.checked;
+  
+  // Update table headers based on NAVIC toggle
+  updateSensorTableHeaders(hideNavic);
+  
+  // Update table body
+  updateSensorTableBody(allSensorData, hideNavic);
 
   // auto expand panel when data arrives
   if (sensorTablePanel.classList.contains('minimized')) {
@@ -4026,6 +4098,96 @@ window.updateSensorTable = function(sensorId, sensorReadings) {
     sensorTableContainer.style.display = "block";
   }
 };
+
+// Function to update table headers based on NAVIC toggle
+function updateSensorTableHeaders(hideNavic) {
+  const thead = document.getElementById("sensorDataTableHeader");
+  if (!thead) return;
+  
+  thead.innerHTML = "";
+  const headerRow = document.createElement("tr");
+  
+  // Always show these columns
+  const baseHeaders = [
+    'Sensor ID', 'Timestamp', 'Moisture', 'Temperature', 
+    'EC', 'pH', 'Nitrogen', 'Phosphorous', 'Potassium'
+  ];
+  
+  baseHeaders.forEach(header => {
+    const th = document.createElement("th");
+    th.textContent = header;
+    headerRow.appendChild(th);
+  });
+  
+  // Show NAVIC columns only when toggle is OFF (not hiding)
+  if (!hideNavic) {
+    const navicHeaders = ['Latitude', 'Longitude', 'Sat Fix'];
+    navicHeaders.forEach(header => {
+      const th = document.createElement("th");
+      th.textContent = header;
+      th.className = 'navic-column';
+      headerRow.appendChild(th);
+    });
+  }
+  
+  thead.appendChild(headerRow);
+}
+
+// Function to update table body based on NAVIC toggle
+function updateSensorTableBody(allSensorData, hideNavic) {
+  const tbody = document.getElementById("sensorDataTableBody");
+  if (!tbody) return;
+  
+  tbody.innerHTML = "";
+
+  allSensorData.forEach(sensorData => {
+    const tr = document.createElement("tr");
+    
+    // Always show base data
+    tr.innerHTML += `
+      <td class="sensor-id-cell">${sensorData.SensorId ?? "-"}</td>
+      <td>${sensorData.Timestamp ? new Date(sensorData.Timestamp).toLocaleString() : "-"}</td>
+      <td>${sensorData.Moisture ?? "-"}</td>
+      <td>${sensorData.Temperature ?? "-"}</td>
+      <td>${sensorData.EC ?? "-"}</td>
+      <td>${sensorData.PHValue ?? "-"}</td>
+      <td>${sensorData.Nitrogen ?? "-"}</td>
+      <td>${sensorData.Phosphorous ?? "-"}</td>
+      <td>${sensorData.Potassium ?? "-"}</td>
+    `;
+    
+    // Show NAVIC data only when toggle is OFF (not hiding)
+    if (!hideNavic) {
+      tr.innerHTML += `
+        <td>${sensorData.Latitude ?? "-"}</td>
+        <td>${sensorData.Longitude ?? "-"}</td>
+        <td>${sensorData.SatelliteFix ?? "-"}</td>
+      `;
+    }
+    
+    tbody.appendChild(tr);
+  });
+}
+
+// NAVIC toggle event listener
+navicToggle.addEventListener('change', function() {
+  console.log('NAVIC toggle changed:', this.checked ? 'Hiding NAVIC columns' : 'Showing NAVIC columns');
+  
+  // Re-render the sensor table with the new NAVIC state
+  if (window.updateSensorTable) {
+    // Call updateSensorTable without parameters to refresh with existing data
+    window.updateSensorTable();
+  }
+});
+
+// Style for NAVIC columns
+const style = document.createElement('style');
+style.textContent = `
+  .navic-column {
+    transition: all 0.3s ease;
+  }
+`;
+document.head.appendChild(style);
 
 /* ================= REALTIME TABLE PANEL ================= */
 const realtimeTablePanel = document.getElementById('realtimeTablePanel');

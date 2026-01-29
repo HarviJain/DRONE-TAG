@@ -1,4 +1,4 @@
-
+{#
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2260,6 +2260,2618 @@ window.addEventListener('resize', handleResize);
 handleResize();
 
 /* ================= INITIALIZATION ================= */
+renderTrackers();
+renderSensors();
+renderGroups();
+
+// Close popups when clicking Escape key or outside
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeAllPopups();
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+  }
+});
+
+// Close popups when clicking outside
+document.addEventListener('click', (e) => {
+  const popups = document.querySelectorAll('.tag-popup');
+  const isClickInsidePopup = Array.from(popups).some(popup => popup.contains(e.target));
+  const isClickInsideSidebar = sidebar.contains(e.target);
+  const isClickOnMobileToggle = mobileMenuToggle.contains(e.target);
+  
+  if (!isClickInsidePopup && !isClickInsideSidebar && !isClickOnMobileToggle) {
+    closeAllPopups();
+  }
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  // Alt+S for sensor panel
+  if (e.altKey && e.key === 's') {
+    e.preventDefault();
+    const sensorPanel = document.getElementById('sensorTablePanel');
+    const sensorHeader = document.getElementById('sensorTablePanelHeader');
+    if (sensorPanel && sensorHeader) {
+      sensorHeader.click();
+    }
+  }
+  
+  // Alt+T for tracker panel
+  if (e.altKey && e.key === 't') {
+    e.preventDefault();
+    const trackerPanel = document.getElementById('realtimeTablePanel');
+    const trackerHeader = document.getElementById('realtimeTablePanelHeader');
+    if (trackerPanel && trackerHeader) {
+      trackerHeader.click();
+    }
+  }
+});
+</script>
+</body>
+</html> #}
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drone Tracker Dashboard</title>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    /* ================= BASE STYLES ================= */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      width: 100vw;
+      background: #f9fafb;
+    }
+
+
+
+
+    
+    /* ================= HEADER ================= */
+    header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 70px;
+  background: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Key */
+  padding: 0 20px;
+  z-index: 3000;
+}
+
+/* Left logo */
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.logo {
+  height: 60px;
+  width: 60px;
+}
+
+/* Center title */
+.header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.site-name {
+  font-size: 30px;
+  font-weight: 700;
+  color: #3973f0ff;
+}
+
+/* Drone image */
+.Drone-photo {
+  height: 70px;
+  width: 117px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 2px solid #e5e7eb;
+}
+
+/* user profile at right corner */
+.user-container {
+  position: absolute;
+  top: 15px;
+  right: 25px;
+}
+
+.profile {
+  width: 62px;
+  height: 45px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  right: 0;
+  background: white;
+  border-radius: 6px;
+  padding: 8px 10px;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+  z-index: 2000;
+}
+
+.dropdown-menu a {
+  display: block;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: #333;
+}
+
+.dropdown-menu a:hover {
+  background: #f1f1f1;
+}
+
+
+
+    /* ================= SIDEBAR ================= */
+    .sidebar {
+      position: fixed;
+      top: 70px;
+      left: 0;
+      bottom: 0;
+      width: 160px;
+      background: #ffffff;
+      border-right: 1px solid #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      z-index: 2000;
+      overflow-y: auto;
+      transition: transform 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        width: 200px;
+      }
+      .sidebar.open {
+        transform: translateX(0);
+      }
+    }
+
+    .sidebar-header {
+      padding: 20px;
+      border-bottom: 1px solid #e5e7eb;
+      flex-shrink: 0;
+      display: none;
+    }
+
+    .sidebar-nav {
+      padding: 12px 8px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 14px 10px;
+      margin-bottom: 8px;
+      cursor: pointer;
+      border-radius: 10px;
+      transition: background 0.2s ease;
+    }
+
+    .sidebar-item:hover {
+      background: #f3f4f6;
+    }
+
+    .item-top {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+      /* .sidebar-icon {
+      width: 40px;
+      height: 40px;
+      color: #6366f1;
+    } */
+
+.sidebar-icon {
+  width: 115px;
+  height: 68px;
+  color: #6366f1;
+  border: 2px solid #6366f1;
+  border-radius: 8px; /* slight rounding */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar-item:hover .sidebar-icon {
+  border-color: #4f46e5;
+  color: #4f46e5;
+  background: #a9adafff;
+}
+    .sidebar-item span {
+      font-size: 13px;
+      color: #374151;
+    }
+
+    .chevron {
+      margin-top: 6px;
+      transition: transform 0.2s ease;
+      color: #6b7280;
+    }
+
+    .chevron.rotate {
+      transform: rotate(180deg);
+    }
+
+    .sidebar-dropdown {
+      display: none;
+      margin-left: 12px;
+      margin-bottom: 10px;
+    }
+
+    .dropdown-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #4b5563;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+
+    .dropdown-item:hover {
+      background: #eef2ff;
+    }
+
+    /* ================= MAIN CONTENT ================= */
+    main {
+      position: fixed;
+      top: 70px;
+      left: 160px;
+      right: 0;
+      bottom: 0;
+      padding: 15px;
+      overflow-y: auto;
+      z-index: 1;
+      transition: left 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+      main {
+        left: 0;
+      }
+    }
+
+    #status-message {
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .last-updated {
+      margin-bottom: 15px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    /* ================= MAP CONTAINER ================= */
+    .map-container {
+      position: relative;
+      height: calc(100vh - 210px);
+      min-height: 400px;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+
+    /* ================= POPUPS ================= */
+    .tag-popup {
+      position: fixed;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+      z-index: 2500;
+      overflow: hidden;
+      transition: all 0.3s ease;
+      max-height: 0;
+      border-left: 4px solid #6366f1;
+    }
+
+    @media (max-width: 1024px) {
+      .tag-popup {
+        left: 50% !important;
+        transform: translateX(-50%);
+        width: 90% !important;
+        max-width: 400px;
+      }
+    }
+
+    .tag-popup.collapsed {
+      max-height = 0 !important;
+    }
+
+    .tag-popup-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 16px;
+      background: #f3f4f6;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .tag-popup-header h4 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .tag-popup-body {
+      padding: 16px;
+      display: block;
+    }
+
+    .tag-popup.collapsed .tag-popup-body {
+      display: none;
+    }
+
+    .tag-popup.collapsed .tag-popup-header {
+      border-bottom: none;
+    }
+
+    .tracker-dropdown-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      padding: 8px 10px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 6px;
+    }
+
+    .tracker-dropdown.collapsible {
+      display: block;
+      max-height: 160px;
+      overflow-y: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+
+    .tracker-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .tracker-option:hover {
+      background: #eef2ff;
+    }
+
+    .tracker-option input[type="checkbox"] {
+      transform: scale(1.1);
+      cursor: pointer;
+    }
+
+    .tracker-option input[type="color"] {
+      width: 28px;
+      height: 28px;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+
+    .tracker-option span {
+      flex: 1;
+      cursor: pointer;
+    }
+
+    .add-tracker {
+      padding: 8px;
+      display: flex;
+      gap: 6px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    .tag-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .tag-input-row input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .tag-input-row button {
+      padding: 8px 12px;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .tag-input-row button:hover {
+      background: #4f46e5;
+    }
+
+    /* Popup positioning */
+    #tagPopup {
+      left: 170px;
+      top: 90px;
+      width: 320px;
+    }
+
+    #sensorPopup {
+      left: 170px;
+      top: 140px;
+      width: 320px;
+    }
+
+    #groupPopup {
+      left: 170px;
+      top: 190px;
+      width: 320px;
+    }
+
+    #groupDetailPopup {
+      left: 510px;
+      top: 90px;
+      width: 320px;
+    }
+
+    #realtimePopup {
+      left: 170px;
+      top: 240px;
+      width: 320px;
+    }
+
+ /* ================= NAVIC TOGGLE BUTTON IN SENSOR DATA TABLE PANEL ================= */
+
+        /* From Uiverse.io by Yaya12085 */ 
+    .switch {
+      position: relative;
+      height: 1.5rem;
+      width: 3rem;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      border-radius: 9999px;
+      background-color: rgba(100, 116, 139, 0.377);
+      transition: all .3s ease;
+    }
+
+    .switch:checked {
+      background-color: rgb(64, 18, 233);
+    }
+
+    .switch::before {
+      position: absolute;
+      content: "";
+      left: calc(1.5rem - 1.6rem);
+      top: calc(1.5rem - 1.6rem);
+      display: block;
+      height: 1.6rem;
+      width: 1.6rem;
+      cursor: pointer;
+      border: 1px solid rgba(100, 116, 139, 0.527);
+      border-radius: 9999px;
+      background-color: rgba(255, 255, 255, 1);
+      box-shadow: 0 3px 10px rgba(100, 116, 139, 0.327);
+      transition: all .3s ease;
+    }
+
+    .switch:hover::before {
+      box-shadow: 0 0 0px 8px rgba(0, 0, 0, .15)
+    }
+
+    .switch:checked:hover::before {
+      box-shadow: 0 0 0px 8px rgba(236, 72, 153, .15)
+    }
+
+    .switch:checked:before {
+      transform: translateX(100%);
+      border-color: rgb(50, 17, 243);
+    }
+    /* ================= SENSOR DATA TABLE PANEL ================= */
+    #sensorTablePanel {
+      position: fixed;
+      bottom: 80px;                      /* can move sensor panel up or down */
+      left: 175px;
+      right: 15px;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+      z-index: 1500;
+      transition: all 0.3s ease;
+      max-height: 250px;
+      overflow: hidden;
+    }
+
+    @media (max-width: 768px) {
+      #sensorTablePanel {
+        left: 15px;
+        bottom: 220px;
+      }
+    }
+
+    #sensorTablePanel.minimized {
+      max-height: 44px;
+    }
+
+    #sensorTablePanelHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 15px;
+      background: #f8fafc;
+      border-bottom: 1px solid #e5e7eb;
+      cursor: pointer;
+    }
+
+    #sensorTablePanelHeader h3 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    #sensorTablePanelChevron {
+      transition: transform 0.3s ease;
+    }
+
+    #sensorTablePanelChevron.rotated {
+      transform: rotate(180deg);
+    }
+
+    #sensorTableContainer {
+      padding: 15px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+
+    #sensorDataTable {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 17px;
+    }
+
+    #sensorDataTable th {
+      background: #f9fafb;
+      padding: 10px 12px;
+      text-align: left;
+      font-weight: 600;
+      color: #374151;
+      border-bottom: 2px solid #e5e7eb;
+      position: sticky;
+      top: 0;
+      white-space: nowrap;
+    }
+
+    #sensorDataTable td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #f3f4f6;
+      color: #4b5563;
+      white-space: nowrap;
+    }
+
+    #sensorDataTable tr:hover {
+      background: #f9fafb;
+    }
+
+    .sensor-id-cell {
+      font-weight: 600;
+      color: #10b981;
+    }
+
+    /* ================= TRACKER REALTIME DATA TABLE PANEL ================= */
+#realtimeTablePanel {
+  position: fixed;
+  bottom: 15px;
+  left: 175px;
+  right: 15px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+  z-index: 1500;
+  transition: all 0.3s ease;
+  max-height: 250px;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  #realtimeTablePanel {
+    left: 15px;
+  }
+}
+
+#realtimeTablePanel.minimized {
+  max-height: 44px;
+}
+
+#realtimeTablePanelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 15px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e5e7eb;
+  cursor: pointer;
+}
+
+#realtimeTablePanelHeader h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+}
+
+#realtimeTablePanelChevron {
+  transition: transform 0.3s ease;
+}
+
+#realtimeTablePanelChevron.rotated {
+  transform: rotate(180deg);
+}
+
+#realtimeTableContainer {
+  padding: 15px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+#realtimeDataTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 17px;
+}
+
+/* ====== UPDATED: Align headers and data properly ====== */
+#realtimeDataTable th,
+#realtimeDataTable td {
+  padding: 10px 12px;      /* Same padding for both */
+  text-align: left;         /* Align headers and data to left */
+  white-space: nowrap;      /* Prevent wrapping */
+  vertical-align: middle;   /* Align text vertically center */
+}
+
+#realtimeDataTable th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+}
+
+#realtimeDataTable td {
+  border-bottom: 1px solid #f3f4f6;
+  color: #4b5563;
+}
+
+#realtimeDataTable tr:hover {
+  background: #f9fafb;
+}
+
+.tracker-id-cell {
+  font-weight: 600;
+  color: #6366f1;
+}
+
+.no-data-row td {
+  text-align: center;
+  padding: 30px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+
+    /* ================= IMAGE GRID ================= */
+    #images-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 15px;
+      padding-bottom: 20px;
+    }
+
+    .image-container {
+      width: calc(25% - 10px);
+      position: relative;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #e5e7eb;
+    }
+
+    @media (max-width: 1200px) {
+      .image-container {
+        width: calc(33.333% - 10px);
+      }
+    }
+
+    @media (max-width: 768px) {
+      .image-container {
+        width: calc(50% - 10px);
+      }
+    }
+
+    .image-container img {
+      width: 100%;
+      height: 120px;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* ================= REALTIME DATA STYLES ================= */
+    .parameter-option {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .parameter-option:hover {
+      background: #f9fafb;
+    }
+
+    .parameter-option input[type="checkbox"] {
+      margin-right: 10px;
+      cursor: pointer;
+      transform: scale(1.1);
+    }
+
+    .parameter-option label {
+      cursor: pointer;
+      flex: 1;
+      user-select: none;
+    }
+
+    .realtime-tracker-item {
+      display: flex;
+      align-items: center;
+      padding: 8px 10px;
+      border-bottom: 1px solid #eee;
+      cursor: pointer;
+    }
+
+    .realtime-tracker-item:hover {
+      background: #eef2ff;
+    }
+
+    .realtime-tracker-id {
+      flex: 1;
+      font-size: 14px;
+      color: #374151;
+    }
+
+    .group-expand-btn {
+      margin-left: 8px;
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+
+    .group-expand-btn.rotated {
+      transform: rotate(90deg);
+    }
+
+    .realtime-group-header {
+      display: flex;
+      align-items: center;
+      padding: 10px 12px;
+      background: #f9fafb;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 5px;
+    }
+
+    .realtime-group-header:hover {
+      background: #f3f4f6;
+    }
+
+    .realtime-group-name {
+      flex: 1;
+      font-weight: 600;
+      color: #374151;
+    }
+
+    .realtime-tracker-list {
+      margin-left: 15px;
+      border-left: 2px solid #e5e7eb;
+      padding-left: 10px;
+    }
+
+    /* ================= GROUP CONTROLS ================= */
+    .group-controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    .group-control-btn {
+      padding: 6px 12px;
+      background: rgba(99, 102, 241, 0.8);
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .group-control-btn:hover {
+      background: rgba(79, 70, 229, 1);
+    }
+
+    /* ================= SCROLLBAR STYLING ================= */
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 4px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #a1a1a1;
+    }
+
+    /* ================= MOBILE MENU TOGGLE ================= */
+    .mobile-menu-toggle {
+      display: none;
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 4000;
+      background: #6366f1;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+      .mobile-menu-toggle {
+        display: block;
+      }
+    }
+
+    /* ================= OVERLAY ================= */
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1999;
+    }
+
+    .overlay.active {
+      display: block;
+    }
+
+    /* ================= STATUS MESSAGES ================= */
+    .status-loading {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status-success {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .status-error {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    /* ================= CHECKBOX CONTAINER ================= */
+    .checkbox-container {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .color-preview {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+    }
+
+    /* ================= SENSOR POPUP STYLES ================= */
+    .sensor-input-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .sensor-input-row input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    .sensor-input-row button {
+      padding: 8px 12px;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+
+    .sensor-input-row button:hover {
+      background: #059669;
+    }
+  </style>
+</head>
+
+<body>
+
+<button class="mobile-menu-toggle" id="mobileMenuToggle">
+  <i data-lucide="menu"></i>
+</button>
+
+<!-- ================= HEADER ================= -->
+<header>
+  <div class="header-left">
+    <img src="{{ url_for('static', filename='images/logo.svg') }}" class="logo">
+  </div>
+
+  <div class="header-center">
+    <span class="site-name">DRONE TAG</span>
+    <img src="/static/images/Drone.png" class="Drone-photo">
+  </div>
+
+  <div class="header-right"></div>
+
+  <div class="user-container dropdown">
+  <img src="{{ url_for('static', filename='images/profile.png') }}" 
+       alt="Profile" 
+       class="profile dropdown-toggle" 
+       id="dropdownMenu"
+       title="Your Account">
+  <div class="dropdown-menu" id="dropdownContent">
+      <a href="/account">Your Account</a>
+      <a href="/settings">Settings</a>
+      <a href="/support">Support</a>
+      <a href="/help">Help</a>
+      <a href="/logout">Logout</a>
+  </div>
+</div>
+
+</header>
+<div class="overlay" id="overlay"></div>
+
+<!-- ================= SIDEBAR ================= -->
+<aside class="sidebar" id="sidebar">
+  <nav class="sidebar-nav">
+    <div class="sidebar-item" onclick="scrollToTop()">
+      <i data-lucide="layout-dashboard" class="sidebar-icon"></i>
+      <span>Dashboard</span>
+    </div>
+
+    <div class="sidebar-item" id="settingsToggle">
+      <div class="item-top">
+        <i data-lucide="settings" class="sidebar-icon"></i>
+        <span>Settings</span>
+      </div>
+      <i data-lucide="chevron-down" class="chevron" id="settingsChevron"></i>
+    </div>
+
+    <div class="sidebar-dropdown" id="settingsDropdown">
+      <div class="dropdown-item" id="openTagPopup">
+        <i data-lucide="tag"></i><span>Tag</span>
+      </div>
+      <div class="dropdown-item" id="openSensorPopup">
+        <i data-lucide="cpu"></i><span>Sensor</span>
+      </div>
+      <div class="dropdown-item" id="openRealtimePopup">
+        <i data-lucide="activity"></i><span>Real-time Data</span>
+      </div>
+    </div>
+
+    <div class="sidebar-item" id="reportsToggle">
+      <div class="item-top">
+        <i data-lucide="file-text" class="sidebar-icon"></i><span>Reports</span>
+      </div>
+      <i data-lucide="chevron-down" class="chevron" id="reportsChevron"></i>
+    </div>
+
+    <div class="sidebar-dropdown" id="reportsDropdown">
+      <div class="dropdown-item" id="openGroupPopup">
+        <i data-lucide="folder"></i><span>Group Name</span>
+      </div>
+    </div>
+  </nav>
+</aside>
+
+<!-- ================= TAG POPUP ================= -->
+<div class="tag-popup" id="tagPopup">
+  <div class="tag-popup-header" id="tagPopupHeader">
+    <h4>Tracker Popup</h4>
+    <i data-lucide="chevron-down" class="chevron" id="tagPopupChevron"></i>
+  </div>
+
+  <div class="tag-popup-body" id="tagPopupBody">
+    <div class="tracker-dropdown-header" id="trackerDropdownHeader">
+      <span>Available Trackers</span>
+      <i data-lucide="chevron-down" class="chevron" id="trackerChevron"></i>
+    </div>
+    <div class="tracker-dropdown collapsible" id="trackerList"></div>
+
+    <div class="add-tracker">
+      <input type="text" id="newTracker" placeholder="Add tracker ID">
+      <button id="addTrackerBtn">+</button>
+    </div>
+
+    <div class="tag-input-row">
+      <input type="text" id="tracker-id" placeholder="Manual Tracker ID">
+      <button id="fetch-btn">Fetch</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SENSOR POPUP ================= -->
+<div class="tag-popup" id="sensorPopup">
+  <div class="tag-popup-header" id="sensorPopupHeader">
+    <h4>Sensor Data</h4>
+    <i data-lucide="chevron-down" class="chevron" id="sensorPopupChevron"></i>
+  </div>
+
+  <div class="tag-popup-body" id="sensorPopupBody">
+    <div class="tracker-dropdown-header" id="sensorDropdownHeader">
+      <span>Available Sensors</span>
+      <i data-lucide="chevron-down" class="chevron" id="sensorChevron"></i>
+    </div>
+    <div class="tracker-dropdown collapsible" id="sensorList"></div>
+
+    <div class="add-tracker">
+      <input type="text" id="newSensor" placeholder="Add sensor ID">
+      <button id="addSensorBtn">+</button>
+    </div>
+
+    <div class="sensor-input-row">
+      <input type="text" id="sensor-id" placeholder="Manual Sensor ID">
+      <button id="fetch-sensor-btn">Fetch Sensor</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= GROUP POPUP ================= -->
+<div class="tag-popup" id="groupPopup">
+  <div class="tag-popup-header" id="groupPopupHeader">
+    <h4>Tracker Groups</h4>
+    <i data-lucide="chevron-down" class="chevron" id="groupPopupChevron"></i>
+  </div>
+
+  <div class="tag-popup-body" id="groupPopupBody">
+    <div class="tag-input-row">
+      <input type="text" id="groupNameInput" placeholder="Group Name">
+      <button id="createGroupBtn">Add Group</button>
+    </div>
+
+    <div id="groupList" class="tracker-dropdown collapsible" style="margin-top:10px;"></div>
+
+    <div class="tag-input-row">
+      <input type="text" id="groupTrackerInput" placeholder="Tracker ID">
+      <button id="addTrackerToGroupBtn">Add</button>
+    </div>
+
+    <div class="tag-input-row">
+      <button id="fetchGroupBtn" style="width:100%">Fetch Group</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= GROUP DETAIL POPUP ================= -->
+<div class="tag-popup" id="groupDetailPopup">
+  <div class="tag-popup-header" id="groupDetailHeader">
+    <h4 id="groupDetailTitle">Group</h4>
+    <i data-lucide="chevron-down" class="chevron" id="groupDetailChevron"></i>
+  </div>
+
+  <div class="tag-popup-body" id="groupDetailBody">
+    <div id="groupTrackerList" class="tracker-dropdown collapsible"></div>
+
+    <div class="tag-input-row" style="margin-top:10px;">
+      <input type="text" id="groupDetailTrackerInput" placeholder="Add Tracker ID" />
+      <button id="addTrackerToGroupDetailBtn">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= REALTIME DATA POPUP ================= -->
+<div class="tag-popup" id="realtimePopup">
+  <div class="tag-popup-header" id="realtimePopupHeader">
+    <h4>Real-time Data Parameters</h4>
+    <i data-lucide="chevron-down" class="chevron" id="realtimePopupChevron"></i>
+  </div>
+
+  <div class="tag-popup-body" id="realtimePopupBody">
+    <div class="tracker-dropdown-header" id="realtimeGroupHeader">
+      <span>Select Group</span>
+      <i data-lucide="chevron-down" class="chevron" id="realtimeGroupChevron"></i>
+    </div>
+    
+    <div class="tracker-dropdown collapsible" id="realtimeGroupList"></div>
+
+    <div id="trackerParametersSection" style="display: none;">
+      <div style="margin: 15px 0 10px 0; font-weight: 600; color: #374151;">
+        Selected Tracker: <span id="selectedTrackerId">-</span>
+      </div>
+      
+      <div id="parametersCheckboxes" class="tracker-dropdown collapsible" style="max-height: 200px;"></div>
+      
+      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
+        <button id="saveParametersBtn" style="width: 100%; padding: 8px; background: #6366f1; color: white; border: none; border-radius: 6px; cursor: pointer;">
+          Save Parameters
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MAIN CONTENT ================= -->
+<main>
+  <div id="status-message"></div>
+  <div class="last-updated"></div>
+  
+  <div class="map-container">
+    <div id="map"></div>
+  </div>
+  
+ <!-- ================= SENSOR DATA TABLE PANEL ================= -->
+<div id="sensorTablePanel" class="minimized">
+
+  <div id="sensorTablePanelHeader"
+       style="display:flex; justify-content:space-between; align-items:center;">
+
+    <h2>Sensor Data Table</h2>
+
+    <!-- RIGHT CONTROLS -->
+    <div style="display:flex; align-items:center; gap:14px;">
+
+      <!-- NAVIC TOGGLE -->
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span style="font-size:13px; font-weight:500;">NAVIC</span>
+        <input type="checkbox"
+               id="navicToggle"
+               class="switch"
+               title="Toggle NAVIC Coordinates">
+      </div>
+
+      <!-- CHEVRON -->
+      <i data-lucide="chevron-up"
+         id="sensorTablePanelChevron"
+         class="rotated"></i>
+
+    </div>
+  </div>
+
+  <div id="sensorTableContainer" style="display: none;">
+    <table id="sensorDataTable">
+
+      <thead id="sensorDataTableHeader">
+        <tr>
+          <th>Sensor ID</th>
+          <th>Timestamp</th>
+          <th>Moisture</th>
+          <th>Temperature</th>
+          <th>EC</th>
+          <th>pH</th>
+          <th>Nitrogen</th>
+          <th>Phosphorous</th>
+          <th>Potassium</th>
+
+          <!-- NAVIC COLUMNS -->
+          <th class="navic-column">Latitude</th>
+          <th class="navic-column">Longitude</th>
+          <th class="navic-column">Sat Fix</th>
+        </tr>
+      </thead>
+
+      <tbody id="sensorDataTableBody">
+        <tr class="no-data-row">
+          <td colspan="13">No sensor data available. Fetch a sensor first.</td>
+        </tr>
+      </tbody>
+
+    </table>
+  </div>
+</div>
+
+
+  <!-- ================= REALTIME DATA TABLE PANEL ================= -->
+  <div id="realtimeTablePanel" class="minimized">
+    <div id="realtimeTablePanelHeader">
+      <h2>Tracker Data Table</h2>
+      <i data-lucide="chevron-up" id="realtimeTablePanelChevron" class="rotated"></i>
+    </div>
+    <div id="realtimeTableContainer" style="display: none;">
+      <table id="realtimeDataTable">
+        <thead>
+          <tr>
+            <th>Tracker ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="no-data-row">
+            <td>No tracker data available. Fetch a tracker first.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <div id="images-grid"></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<script src="{{ url_for('static', filename='js/fetchdata.js') }}"></script>
+
+<script>
+lucide.createIcons();
+
+
+  /* =================  user profile seeting at header corner ================= */
+document.addEventListener('DOMContentLoaded', function () {
+  const profileIcon = document.querySelector('.dropdown-toggle');
+  const dropdownMenu = document.getElementById('dropdownContent');
+
+  profileIcon.addEventListener('click', function (e) {
+    e.preventDefault();
+    dropdownMenu.style.display = dropdownMenu.style.display === 'block' ? 'none' : 'block';
+  });
+
+  document.addEventListener('click', function (event) {
+    if (!event.target.closest('.dropdown')) {
+      dropdownMenu.style.display = 'none';
+    }
+  });
+});
+
+/* ================= MOBILE MENU ================= */
+const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+const sidebar = document.getElementById('sidebar');
+const overlay = document.getElementById('overlay');
+
+mobileMenuToggle.addEventListener('click', () => {
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('active');
+});
+
+overlay.addEventListener('click', () => {
+  sidebar.classList.remove('open');
+  overlay.classList.remove('active');
+});
+
+/* ================= RESPONSIVE HELPERS ================= */
+function scrollToTop() {
+  document.querySelector('main').scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function closeAllPopups() {
+  const popups = document.querySelectorAll('.tag-popup');
+  popups.forEach(popup => {
+    popup.style.maxHeight = '0';
+    popup.classList.add('collapsed');
+    const chevron = popup.querySelector('.chevron');
+    if (chevron) chevron.classList.remove('rotate');
+  });
+}
+
+/* ================= POPUP MANAGEMENT ================= */
+function makePopupCollapsible(popupId, chevronId) {
+  const popup = document.getElementById(popupId);
+  const chevron = document.getElementById(chevronId);
+  const header = document.getElementById(popupId + 'Header') || popup.querySelector('.tag-popup-header');
+
+  if (!popup || !chevron) return;
+
+  const togglePopup = (e) => {
+    if (e) e.stopPropagation();
+    const collapsed = popup.classList.toggle("collapsed");
+    chevron.classList.toggle("rotate", !collapsed);
+    
+    if (!collapsed) {
+      // Close other popups when opening this one
+      const allPopups = document.querySelectorAll('.tag-popup');
+      allPopups.forEach(p => {
+        if (p.id !== popupId && !p.classList.contains('collapsed')) {
+          p.style.maxHeight = '0';
+          p.classList.add('collapsed');
+          const otherChevron = p.querySelector('.chevron');
+          if (otherChevron) otherChevron.classList.remove('rotate');
+        }
+      });
+      
+      // Set max height based on content
+      const body = popup.querySelector('.tag-popup-body');
+      if (body) {
+        const height = body.scrollHeight + 48;
+        popup.style.maxHeight = `${Math.min(height, 600)}px`;
+      }
+    } else {
+      popup.style.maxHeight = '0';
+    }
+  };
+
+  chevron.addEventListener("click", togglePopup);
+  
+  if (header) {
+    header.addEventListener("click", togglePopup);
+  }
+}
+
+// Initialize all popups
+makePopupCollapsible("tagPopup", "tagPopupChevron");
+makePopupCollapsible("sensorPopup", "sensorPopupChevron");
+makePopupCollapsible("groupPopup", "groupPopupChevron");
+makePopupCollapsible("groupDetailPopup", "groupDetailChevron");
+makePopupCollapsible("realtimePopup", "realtimePopupChevron");
+
+/* ================= SIDEBAR DROPDOWNS ================= */
+function toggleMenu(toggleBtn, dropdown, chevron) {
+  if (!toggleBtn || !dropdown || !chevron) return;
+  
+  toggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const open = dropdown.style.display === "block";
+    dropdown.style.display = open ? "none" : "block";
+    chevron.classList.toggle("rotate", !open);
+  });
+}
+
+toggleMenu(
+  document.getElementById("settingsToggle"),
+  document.getElementById("settingsDropdown"),
+  document.getElementById("settingsChevron")
+);
+
+toggleMenu(
+  document.getElementById("reportsToggle"),
+  document.getElementById("reportsDropdown"),
+  document.getElementById("reportsChevron")
+);
+
+/* ================= SENSOR POPUP FUNCTIONS ================= */
+const sensorPopup = document.getElementById("sensorPopup");
+const sensorList = document.getElementById("sensorList");
+const sensorInput = document.getElementById("sensor-id");
+
+document.getElementById("openSensorPopup").onclick = (e) => {
+  e.stopPropagation();
+  closeAllPopups();
+  sensorPopup.style.maxHeight = "600px";
+  sensorPopup.classList.remove("collapsed");
+  document.getElementById("sensorPopupChevron").classList.add("rotate");
+  renderSensors();
+};
+
+// Sensor storage
+const SENSOR_STORAGE_KEY = "saved_sensors";
+
+const getSavedSensors = () => JSON.parse(localStorage.getItem(SENSOR_STORAGE_KEY)) || [];
+const saveSensor = (id) => {
+  const sensors = getSavedSensors();
+  if (!sensors.includes(id)) {
+    sensors.push(id);
+    localStorage.setItem(SENSOR_STORAGE_KEY, JSON.stringify(sensors));
+  }
+};
+
+function renderSensors() {
+  sensorList.innerHTML = "";
+  getSavedSensors().forEach(id => {
+    const div = document.createElement("div");
+    div.className = "tracker-option";
+    div.textContent = id;
+    div.onclick = () => handleFetchSensor(id);
+    sensorList.appendChild(div);
+  });
+}
+
+function handleFetchSensor(sensorId) {
+  if (!sensorId) return;
+  sensorInput.value = sensorId;
+  saveSensor(sensorId);
+  renderSensors();
+  if (window.fetchSensorData) {
+    window.fetchSensorData(sensorId);
+  }
+}
+
+document.getElementById("fetch-sensor-btn").onclick = () => handleFetchSensor(sensorInput.value.trim());
+document.getElementById("addSensorBtn").onclick = () => {
+  const val = document.getElementById("newSensor").value.trim();
+  if (!val) return;
+  saveSensor(val);
+  renderSensors();
+  document.getElementById("newSensor").value = "";
+};
+
+/* ================= SENSOR TABLE PANEL ================= */
+/* ================= SENSOR TABLE PANEL ================= */
+const sensorTablePanel = document.getElementById('sensorTablePanel');
+const sensorTablePanelHeader = document.getElementById('sensorTablePanelHeader');
+const sensorTablePanelChevron = document.getElementById('sensorTablePanelChevron');
+const sensorTableContainer = document.getElementById('sensorTableContainer');
+const sensorDataTable = document.getElementById('sensorDataTable');
+const navicToggle = document.getElementById('navicToggle');
+
+// Toggle panel visibility
+sensorTablePanelHeader.addEventListener('click', (e) => {
+  // Don't trigger panel toggle when clicking on the NAVIC toggle
+  if (e.target.closest('#navicToggle') || e.target.closest('span[style*="font-size: 13px"]')) {
+    return;
+  }
+  e.stopPropagation();
+  const isMinimized = sensorTablePanel.classList.toggle('minimized');
+  sensorTablePanelChevron.classList.toggle('rotated', isMinimized);
+  sensorTableContainer.style.display = isMinimized ? 'none' : 'block';
+});
+
+// Store sensor historical readings
+window.sensorTableData = {};
+
+// Unified timestamp formatter
+function normalizeTimestamp(ts) {
+  if (!ts) return null;
+
+  // convert "24-01-2026 10:16:00" → "2026-01-24T10:16:00"
+  if (typeof ts === "string" && ts.includes("-")) {
+    const [dmy, time] = ts.split(" ");
+    const [d, m, y] = dmy.split("-");
+    return `${y}-${m}-${d}T${time}`;
+  }
+  return ts;
+}
+
+// Main update function
+window.updateSensorTable = function(sensorId, sensorReadings) {
+  // Normalize array
+  if (sensorId && sensorReadings) {
+    if (!Array.isArray(sensorReadings)) {
+      sensorReadings = [sensorReadings];
+    }
+
+    if (!window.sensorTableData[sensorId]) {
+      window.sensorTableData[sensorId] = [];
+    }
+
+    sensorReadings.forEach(reading => {
+      if (!reading.SensorId) reading.SensorId = sensorId;
+      if (!reading.Timestamp) reading.Timestamp = new Date().toISOString();
+      reading.Timestamp = normalizeTimestamp(reading.Timestamp);
+
+      // Dedupe by Id or timestamp
+      const exists = window.sensorTableData[sensorId].some(r =>
+        (r.Id && r.Id === reading.Id) ||
+        (r.Timestamp && r.Timestamp === reading.Timestamp)
+      );
+
+      if (!exists) {
+        window.sensorTableData[sensorId].unshift(reading);
+      }
+    });
+
+    // Limit history
+    if (window.sensorTableData[sensorId].length > 50) {
+      window.sensorTableData[sensorId].length = 50;
+    }
+  }
+
+  const tbody = document.getElementById("sensorDataTableBody");
+  const thead = document.getElementById("sensorDataTableHeader");
+
+  const allSensorData = [];
+  Object.values(window.sensorTableData).forEach(arr => arr.forEach(r => allSensorData.push(r)));
+
+  if (allSensorData.length === 0) {
+    const colspan = navicToggle.checked ? 9 : 12; // 9 columns when NAVIC hidden, 12 when shown
+    tbody.innerHTML = `
+      <tr class="no-data-row">
+        <td colspan="${colspan}" style="text-align:center;">No sensor data available. Fetch a sensor first.</td>
+      </tr>`;
+    return;
+  }
+
+  // Sort latest first
+  allSensorData.sort((a, b) => new Date(b.Timestamp) - new Date(a.Timestamp));
+
+  // Get NAVIC toggle state
+  const hideNavic = navicToggle.checked;
+  
+  // Update table headers based on NAVIC toggle
+  updateSensorTableHeaders(hideNavic);
+  
+  // Update table body
+  updateSensorTableBody(allSensorData, hideNavic);
+
+  // auto expand panel when data arrives
+  if (sensorTablePanel.classList.contains('minimized')) {
+    sensorTablePanel.classList.remove('minimized');
+    sensorTablePanelChevron.classList.remove('rotated');
+    sensorTableContainer.style.display = "block";
+  }
+};
+
+// Function to update table headers based on NAVIC toggle
+function updateSensorTableHeaders(hideNavic) {
+  const thead = document.getElementById("sensorDataTableHeader");
+  if (!thead) return;
+  
+  thead.innerHTML = "";
+  const headerRow = document.createElement("tr");
+  
+  // Always show these columns
+  const baseHeaders = [
+    'Sensor ID', 'Timestamp', 'Moisture', 'Temperature', 
+    'EC', 'pH', 'Nitrogen', 'Phosphorous', 'Potassium'
+  ];
+  
+  baseHeaders.forEach(header => {
+    const th = document.createElement("th");
+    th.textContent = header;
+    headerRow.appendChild(th);
+  });
+  
+  // Show NAVIC columns only when toggle is OFF (not hiding)
+  if (!hideNavic) {
+    const navicHeaders = ['Latitude', 'Longitude', 'Sat Fix'];
+    navicHeaders.forEach(header => {
+      const th = document.createElement("th");
+      th.textContent = header;
+      th.className = 'navic-column';
+      headerRow.appendChild(th);
+    });
+  }
+  
+  thead.appendChild(headerRow);
+}
+
+// Function to update table body based on NAVIC toggle
+function updateSensorTableBody(allSensorData, hideNavic) {
+  const tbody = document.getElementById("sensorDataTableBody");
+  if (!tbody) return;
+  
+  tbody.innerHTML = "";
+
+  allSensorData.forEach(sensorData => {
+    const tr = document.createElement("tr");
+    
+    // Always show base data
+    tr.innerHTML += `
+      <td class="sensor-id-cell">${sensorData.SensorId ?? "-"}</td>
+      <td>${sensorData.Timestamp ? new Date(sensorData.Timestamp).toLocaleString() : "-"}</td>
+      <td>${sensorData.Moisture ?? "-"}</td>
+      <td>${sensorData.Temperature ?? "-"}</td>
+      <td>${sensorData.EC ?? "-"}</td>
+      <td>${sensorData.PHValue ?? "-"}</td>
+      <td>${sensorData.Nitrogen ?? "-"}</td>
+      <td>${sensorData.Phosphorous ?? "-"}</td>
+      <td>${sensorData.Potassium ?? "-"}</td>
+    `;
+    
+    // Show NAVIC data only when toggle is OFF (not hiding)
+    if (!hideNavic) {
+      tr.innerHTML += `
+        <td>${sensorData.Latitude ?? "-"}</td>
+        <td>${sensorData.Longitude ?? "-"}</td>
+        <td>${sensorData.SatelliteFix ?? "-"}</td>
+      `;
+    }
+    
+    tbody.appendChild(tr);
+  });
+}
+
+// NAVIC toggle event listener
+navicToggle.addEventListener('change', function() {
+  console.log('NAVIC toggle changed:', this.checked ? 'Hiding NAVIC columns' : 'Showing NAVIC columns');
+  
+  // Re-render the sensor table with the new NAVIC state
+  if (window.updateSensorTable) {
+    // Call updateSensorTable without parameters to refresh with existing data
+    window.updateSensorTable();
+  }
+});
+
+// Style for NAVIC columns
+const style = document.createElement('style');
+style.textContent = `
+  .navic-column {
+    transition: all 0.3s ease;
+  }
+`;
+document.head.appendChild(style);
+
+/* ================= REALTIME TABLE PANEL ================= */
+const realtimeTablePanel = document.getElementById('realtimeTablePanel');
+const realtimeTablePanelHeader = document.getElementById('realtimeTablePanelHeader');
+const realtimeTablePanelChevron = document.getElementById('realtimeTablePanelChevron');
+const realtimeTableContainer = document.getElementById('realtimeTableContainer');
+const realtimeDataTable = document.getElementById('realtimeDataTable');
+
+// Toggle panel visibility
+realtimeTablePanelHeader.addEventListener('click', (e) => {
+  e.stopPropagation();
+  const isMinimized = realtimeTablePanel.classList.toggle('minimized');
+  realtimeTablePanelChevron.classList.toggle('rotated', isMinimized);
+  
+  if (isMinimized) {
+    realtimeTableContainer.style.display = 'none';
+  } else {
+    realtimeTableContainer.style.display = 'block';
+  }
+});
+
+// Store ALL points data for each tracker
+window.realtimeTableDataAllPoints = {};
+
+// Function to add ALL points for a tracker
+window.updateRealtimeTableAllPoints = function(trackerId, pointsArray, selectedParams = null) {
+  console.log(`updateRealtimeTableAllPoints called with trackerId: ${trackerId}, pointsArray:`, pointsArray);
+  
+  // Handle case when called without parameters (from clearMap)
+  if (trackerId === undefined) {
+    console.log('Clearing table data');
+    if (!window.realtimeTableDataAllPoints) {
+      window.realtimeTableDataAllPoints = {};
+    }
+    window.realtimeTableDataAllPoints = {};
+    updateRealtimeTableWithAllPoints();
+    return;
+  }
+  
+  if (trackerId && pointsArray && Array.isArray(pointsArray)) {
+    console.log(`Processing ${pointsArray.length} points for tracker ${trackerId}`);
+    
+    // Store all points for this tracker
+    if (!window.realtimeTableDataAllPoints[trackerId]) {
+      window.realtimeTableDataAllPoints[trackerId] = [];
+    }
+    
+    // Add all new points
+    pointsArray.forEach(newPoint => {
+      // Check if point already exists (by timestamp and tracker ID)
+      const exists = window.realtimeTableDataAllPoints[trackerId].some(
+        existingPoint => existingPoint.timestamp === newPoint.timestamp && 
+                        existingPoint['Tracker ID'] === newPoint['Tracker ID']
+      );
+      if (!exists) {
+        window.realtimeTableDataAllPoints[trackerId].push(newPoint);
+      }
+    });
+    
+    // Sort by timestamp (newest first)
+    window.realtimeTableDataAllPoints[trackerId].sort((a, b) => {
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+    
+    // Store selected parameters
+    if (selectedParams) {
+      if (!window.realtimeTableParamsAll) {
+        window.realtimeTableParamsAll = {};
+      }
+      window.realtimeTableParamsAll[trackerId] = selectedParams;
+    }
+    
+    console.log(`Now have ${window.realtimeTableDataAllPoints[trackerId].length} total points for ${trackerId}`);
+  } else {
+    console.warn('Invalid parameters passed to updateRealtimeTableAllPoints');
+  }
+  
+  // Update the table display
+  updateRealtimeTableWithAllPoints();
+};
+
+// Function to update table with ALL points
+function updateRealtimeTableWithAllPoints() {
+  console.log('Updating real-time table with all points...');
+  
+  // Get all trackers that have data
+  const trackerIds = Object.keys(window.realtimeTableDataAllPoints || {});
+  
+  if (trackerIds.length === 0) {
+    console.log('No tracker data available');
+    const tbody = document.querySelector('#realtimeDataTable tbody');
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr class="no-data-row">
+          <td colspan="100">No tracker data available. Fetch a tracker first.</td>
+        </tr>
+      `;
+    }
+    return;
+  }
+  
+  // Determine which columns to show
+  const defaultColumns = ['Tracker ID', 'Point #', 'timestamp', 'latitude', 'longitude', 'altitude', 'uin_no', 'application', 'category'];
+  const columns = new Set(['Tracker ID', 'Point #']);
+  
+  // Add columns based on selected parameters for all trackers
+  trackerIds.forEach(id => {
+    const params = window.getRealtimeParameters ? window.getRealtimeParameters(id) : null;
+    if (params) {
+      Object.keys(params).forEach(param => {
+        if (params[param] && defaultColumns.includes(param)) {
+          columns.add(param);
+        }
+      });
+    } else {
+      // If no parameters selected, show all default columns
+      defaultColumns.forEach(col => columns.add(col));
+    }
+  });
+  
+  // Convert set to array
+  const columnArray = Array.from(columns);
+  console.log('Columns to display:', columnArray);
+  
+  // Update table headers
+  const thead = document.querySelector('#realtimeDataTable thead');
+  if (thead) {
+    thead.innerHTML = '';
+    const headerRow = document.createElement('tr');
+    
+    columnArray.forEach(column => {
+      const th = document.createElement('th');
+      th.textContent = formatHeaderText(column);
+      headerRow.appendChild(th);
+    });
+    
+    thead.appendChild(headerRow);
+  }
+  
+  // Update table body
+  const tbody = document.querySelector('#realtimeDataTable tbody');
+  if (tbody) {
+    tbody.innerHTML = '';
+    
+    // Collect ALL points from ALL trackers
+    let allPoints = [];
+    
+    trackerIds.forEach(trackerId => {
+      const points = window.realtimeTableDataAllPoints[trackerId] || [];
+      
+      points.forEach((point, index) => {
+        // Add point number to the point object
+        const pointWithNumber = {
+          ...point,
+          'Point #': index + 1
+        };
+        allPoints.push(pointWithNumber);
+      });
+    });
+    
+    console.log(`Total points to display: ${allPoints.length}`);
+    
+    if (allPoints.length === 0) {
+      const row = document.createElement('tr');
+      row.className = 'no-data-row';
+      const td = document.createElement('td');
+      td.colSpan = columnArray.length;
+      td.textContent = 'No data points available.';
+      row.appendChild(td);
+      tbody.appendChild(row);
+    } else {
+      // Sort all points by timestamp (newest first)
+      allPoints.sort((a, b) => {
+        return new Date(b.timestamp) - new Date(a.timestamp);
+      });
+      
+      // Reset point numbers after sorting
+      allPoints.forEach((point, index) => {
+        point['Point #'] = index + 1;
+      });
+      
+      // Add each point as a row
+      allPoints.forEach((point) => {
+        const row = document.createElement('tr');
+        const trackerId = point['Tracker ID'];
+        
+        // Get the selected parameters for this tracker
+        const trackerParams = window.getRealtimeParameters ? window.getRealtimeParameters(trackerId) : null;
+        
+        columnArray.forEach(column => {
+          const td = document.createElement('td');
+          
+          if (column === 'Point #') {
+            td.textContent = point[column] || '';
+            td.style.fontWeight = '500';
+            td.style.color = '#4b5563';
+          } else if (column === 'Tracker ID') {
+            td.className = 'tracker-id-cell';
+            td.textContent = trackerId;
+          } else {
+            // Check if this parameter is selected for this tracker
+            const shouldShow = trackerParams ? trackerParams[column] : true;
+            
+            if (shouldShow && point[column] !== undefined) {
+              td.textContent = formatCellValue(column, point[column]);
+            } else {
+              td.textContent = '-';
+              td.style.color = '#9ca3af';
+              td.style.fontStyle = 'italic';
+            }
+          }
+          
+          row.appendChild(td);
+        });
+        
+        tbody.appendChild(row);
+      });
+    }
+  }
+  
+  // Update panel title with point count
+  const panelHeader = document.querySelector('#realtimeTablePanelHeader h2');
+  if (panelHeader) {
+    const totalPoints = Object.values(window.realtimeTableDataAllPoints || {})
+      .reduce((sum, points) => sum + (points ? points.length : 0), 0);
+    panelHeader.textContent = `Tracker Data Table (${totalPoints} points)`;
+  }
+  
+  // Show panel if minimized
+  const realtimePanel = document.getElementById('realtimeTablePanel');
+  if (realtimePanel && realtimePanel.classList.contains('minimized')) {
+    realtimePanel.classList.remove('minimized');
+    const chevron = document.getElementById('realtimeTablePanelChevron');
+    if (chevron) chevron.classList.remove('rotated');
+    const container = document.getElementById('realtimeTableContainer');
+    if (container) container.style.display = 'block';
+  }
+  
+  console.log('Table update complete');
+}
+
+// Helper functions for formatting
+function formatHeaderText(header) {
+  const formatMap = {
+    'timestamp': 'Timestamp',
+    'latitude': 'Latitude',
+    'longitude': 'Longitude',
+    'altitude': 'Altitude (m)',
+    'uin_no': 'UIN No',
+    'application': 'Application',
+    'category': 'Category',
+    'Tracker ID': 'Tracker ID',
+    'Point #': '#'
+  };
+  return formatMap[header] || header;
+}
+
+function formatCellValue(header, value) {
+  if (header === 'timestamp' && value) {
+    try {
+      return new Date(value).toLocaleString();
+    } catch (e) {
+      return value;
+    }
+  }
+  if ((header === 'latitude' || header === 'longitude') && value) {
+    const num = parseFloat(value);
+    return isNaN(num) ? value : num.toFixed(6);
+  }
+  if (header === 'altitude' && value) {
+    const num = parseFloat(value);
+    return isNaN(num) ? value : `${num.toFixed(1)}`;
+  }
+  return value || '-';
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize data objects
+  if (!window.realtimeTableDataAllPoints) {
+    window.realtimeTableDataAllPoints = {};
+  }
+  if (!window.realtimeTableParamsAll) {
+    window.realtimeTableParamsAll = {};
+  }
+  
+  console.log('Real-time table functions initialized');
+  
+  // Initialize the table after a short delay
+  setTimeout(() => {
+    updateRealtimeTableWithAllPoints();
+  }, 500);
+});
+
+/* ================= STORAGE ================= */
+const STORAGE_KEY = "saved_trackers";
+const GROUP_KEY = "tracker_groups";
+const REALTIME_SETTINGS_KEY = "realtime_parameters";
+let activeGroup = null;
+let selectedTrackerForRealtime = null;
+
+const getSavedTrackers = () => JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+const saveTracker = (id) => {
+  const trackers = getSavedTrackers();
+  if (!trackers.includes(id)) {
+    trackers.push(id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(trackers));
+  }
+};
+
+const getGroups = () => {
+  const groups = JSON.parse(localStorage.getItem(GROUP_KEY)) || {};
+  
+  // Always ensure guest group exists with tracker IDs 3001-3005
+  if (!groups['guest'] || !Array.isArray(groups['guest'])) {
+    groups['guest'] = ['3001', '3002', '3003', '3004', '3005'];
+    localStorage.setItem(GROUP_KEY, JSON.stringify(groups));
+  }
+  
+  return groups;
+};
+
+const saveGroups = (groups) => localStorage.setItem(GROUP_KEY, JSON.stringify(groups));
+
+/* ================= REALTIME DATA SETTINGS ================= */
+const getRealtimeSettings = () => JSON.parse(localStorage.getItem(REALTIME_SETTINGS_KEY)) || {};
+const saveRealtimeSettings = (settings) => localStorage.setItem(REALTIME_SETTINGS_KEY, JSON.stringify(settings));
+
+const availableParameters = [
+  { id: 'timestamp', label: 'Timestamp', default: true },
+  { id: 'latitude', label: 'Latitude', default: true },
+  { id: 'longitude', label: 'Longitude', default: true },
+  { id: 'altitude', label: 'Altitude', default: true },
+  { id: 'uin_no', label: 'UIN No', default: true },
+  { id: 'application', label: 'Application', default: true },
+  { id: 'category', label: 'Category', default: true }
+];
+
+/* ================= TAG POPUP FUNCTIONS ================= */
+const tagPopup = document.getElementById("tagPopup");
+const trackerList = document.getElementById("trackerList");
+const trackerInput = document.getElementById("tracker-id");
+
+document.getElementById("openTagPopup").onclick = (e) => {
+  e.stopPropagation();
+  closeAllPopups();
+  tagPopup.style.maxHeight = "600px";
+  tagPopup.classList.remove("collapsed");
+  document.getElementById("tagPopupChevron").classList.add("rotate");
+  renderTrackers();
+};
+
+function renderTrackers() {
+  trackerList.innerHTML = "";
+  getSavedTrackers().forEach(id => {
+    const div = document.createElement("div");
+    div.className = "tracker-option";
+    div.textContent = id;
+    div.onclick = () => handleFetch(id);
+    trackerList.appendChild(div);
+  });
+}
+
+function handleFetch(id) {
+  if (!id) return;
+  trackerInput.value = id;
+  saveTracker(id);
+  renderTrackers();
+  if (typeof fetchDroneData === "function") {
+    fetchDroneData(id);
+  }
+}
+
+document.getElementById("fetch-btn").onclick = () => handleFetch(trackerInput.value.trim());
+document.getElementById("addTrackerBtn").onclick = () => {
+  const val = document.getElementById("newTracker").value.trim();
+  if (!val) return;
+  saveTracker(val);
+  renderTrackers();
+  document.getElementById("newTracker").value = "";
+};
+
+/* ================= GROUP POPUP FUNCTIONS ================= */
+const groupPopup = document.getElementById("groupPopup");
+const groupList = document.getElementById("groupList");
+
+document.getElementById("openGroupPopup").onclick = (e) => {
+  e.stopPropagation();
+  closeAllPopups();
+  groupPopup.style.maxHeight = "600px";
+  groupPopup.classList.remove("collapsed");
+  document.getElementById("groupPopupChevron").classList.add("rotate");
+  renderGroups();
+};
+
+function renderGroups() {
+  groupList.innerHTML = "";
+  const groups = getGroups();
+  
+  // Always show guest group first
+  if (groups['guest']) {
+    const guestDiv = document.createElement("div");
+    guestDiv.className = "tracker-option";
+    guestDiv.style.backgroundColor = "#f0f9ff";
+    guestDiv.style.borderLeft = "4px solid #3b82f6";
+    guestDiv.innerHTML = `
+      <div style="display: flex; align-items: center; width: 100%;">
+        <i data-lucide="users" style="width: 20px; height: 20px; margin-right: 8px; color: #3b82f6;"></i>
+        <span style="flex: 1; font-weight: 600; color: #1e40af;">guest</span>
+        <span style="font-size: 11px; color: #6b7280; background: #e5e7eb; padding: 2px 6px; border-radius: 10px;">
+          ${groups['guest'].length} trackers
+        </span>
+      </div>
+    `;
+    guestDiv.addEventListener("click", () => {
+      openGroupDetail('guest');
+      groupDetailPopup.style.maxHeight = "600px";
+      groupDetailPopup.classList.remove("collapsed");
+    });
+    groupList.appendChild(guestDiv);
+    
+    // Add separator
+    const separator = document.createElement("div");
+    separator.style.height = "1px";
+    separator.style.backgroundColor = "#e5e7eb";
+    separator.style.margin = "8px 0";
+    groupList.appendChild(separator);
+  }
+  
+  // Show other user-created groups
+  Object.keys(groups).forEach(groupName => {
+    if (groupName !== 'guest') {
+      const div = document.createElement("div");
+      div.className = "tracker-option";
+      div.textContent = groupName;
+      div.addEventListener("click", () => {
+        openGroupDetail(groupName);
+        groupDetailPopup.style.maxHeight = "600px";
+        groupDetailPopup.classList.remove("collapsed");
+      });
+      groupList.appendChild(div);
+    }
+  });
+  
+  lucide.createIcons();
+}
+
+document.getElementById("createGroupBtn").onclick = () => {
+  const name = document.getElementById("groupNameInput").value.trim();
+  if (!name) return;
+  
+  // Prevent creating a group named "guest"
+  if (name.toLowerCase() === 'guest') {
+    alert('"guest" is a reserved group name. Please choose a different name.');
+    return;
+  }
+  
+  const groups = getGroups();
+  if (!groups[name]) groups[name] = [];
+  saveGroups(groups);
+  document.getElementById("groupNameInput").value = "";
+  renderGroups();
+};
+
+/* ================= GROUP DETAIL POPUP ================= */
+const groupDetailPopup = document.getElementById("groupDetailPopup");
+const groupTrackerList = document.getElementById("groupTrackerList");
+const groupDetailTitle = document.getElementById("groupDetailTitle");
+
+let groupSettings = JSON.parse(localStorage.getItem('groupSettings')) || {};
+const defaultColors = [
+  '#FF6B6B', '#4ECDC4', '#FFD166', '#06D6A0', '#118AB2', 
+  '#EF476F', '#9D4EDD', '#FB5607', '#3A86FF', '#8338EC'
+];
+
+function openGroupDetail(groupName) {
+  if (window.setActiveGroup) window.setActiveGroup(groupName);
+  activeGroup = groupName;
+  
+  // Update title with special styling for guest group
+  if (groupName === 'guest') {
+    groupDetailTitle.innerHTML = `
+      <span style="color: #1e40af; font-weight: 700;">${groupName}</span>
+      <span style="font-size: 12px; color: #6b7280; margin-left: 8px;">(Pre-configured demo group)</span>
+    `;
+  } else {
+    groupDetailTitle.textContent = groupName;
+  }
+  
+  const groups = getGroups();
+  groupTrackerList.innerHTML = "";
+  
+  if (!groupSettings[groupName]) groupSettings[groupName] = {};
+  
+  (groups[groupName] || []).forEach((tid, index) => {
+    if (!groupSettings[groupName][tid]) {
+      groupSettings[groupName][tid] = {
+        visible: true,
+        color: defaultColors[index % defaultColors.length]
+      };
+    }
+    
+    const div = document.createElement("div");
+    div.className = "tracker-option";
+    div.dataset.trackerId = tid;
+    
+    const checkboxContainer = document.createElement("div");
+    checkboxContainer.className = "checkbox-container";
+    
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.className = "tracker-checkbox";
+    checkbox.checked = groupSettings[groupName][tid].visible;
+    checkbox.dataset.trackerId = tid;
+    
+    const colorPicker = document.createElement("input");
+    colorPicker.type = "color";
+    colorPicker.className = "tracker-color-picker";
+    colorPicker.value = groupSettings[groupName][tid].color;
+    colorPicker.dataset.trackerId = tid;
+    colorPicker.style.display = "none";
+    
+    const colorPreview = document.createElement("div");
+    colorPreview.className = "color-preview";
+    colorPreview.style.backgroundColor = groupSettings[groupName][tid].color;
+    
+    const trackerIdSpan = document.createElement("span");
+    trackerIdSpan.className = "tracker-id-text";
+    trackerIdSpan.textContent = tid;
+    trackerIdSpan.dataset.trackerId = tid;
+    
+    trackerIdSpan.onclick = () => {
+      if (window.handleFetch) window.handleFetch(tid);
+    };
+    
+    checkbox.onchange = (e) => {
+      const trackerId = e.target.dataset.trackerId;
+      const isVisible = e.target.checked;
+      groupSettings[groupName][trackerId].visible = isVisible;
+      saveGroupSettings();
+      if (window.updateTrackerVisibilityFromGroup) {
+        window.updateTrackerVisibilityFromGroup(trackerId, isVisible);
+      }
+    };
+    
+    colorPicker.onchange = (e) => {
+      const trackerId = e.target.dataset.trackerId;
+      const newColor = e.target.value;
+      groupSettings[groupName][trackerId].color = newColor;
+      saveGroupSettings();
+      colorPreview.style.backgroundColor = newColor;
+      if (window.updateTrackerColorFromGroup) {
+        window.updateTrackerColorFromGroup(trackerId, newColor);
+      }
+    };
+    
+    colorPreview.onclick = () => colorPicker.click();
+    
+    checkboxContainer.appendChild(checkbox);
+    checkboxContainer.appendChild(colorPreview);
+    div.appendChild(checkboxContainer);
+    div.appendChild(colorPicker);
+    div.appendChild(trackerIdSpan);
+    groupTrackerList.appendChild(div);
+  });
+  
+  saveGroupSettings();
+  
+  // Special message for guest group
+  if (groupName === 'guest') {
+    const infoDiv = document.createElement("div");
+    infoDiv.style.marginTop = "10px";
+    infoDiv.style.padding = "8px";
+    infoDiv.style.backgroundColor = "#f0f9ff";
+    infoDiv.style.borderRadius = "6px";
+    infoDiv.style.fontSize = "12px";
+    infoDiv.style.color = "#1e40af";
+    infoDiv.innerHTML = `
+      <div style="display: flex; align-items: center;">
+        <i data-lucide="info" style="width: 14px; height: 14px; margin-right: 6px;"></i>
+        <span>This is a pre-configured demo group with trackers 3001-3005</span>
+      </div>
+    `;
+    groupTrackerList.insertBefore(infoDiv, groupTrackerList.firstChild);
+    lucide.createIcons();
+  }
+}
+
+function saveGroupSettings() {
+  localStorage.setItem('groupSettings', JSON.stringify(groupSettings));
+}
+
+// Add tracker to group (from group popup)
+document.getElementById("addTrackerToGroupBtn").onclick = () => {
+  if (!activeGroup) {
+    alert("Select a group first");
+    return;
+  }
+  
+  // Prevent adding to guest group
+  if (activeGroup === 'guest') {
+    alert('Cannot add trackers to the guest group. It is a pre-configured demo group.');
+    return;
+  }
+  
+  const tracker = document.getElementById("groupTrackerInput").value.trim();
+  if (!tracker) return;
+  const groups = getGroups();
+  if (!groups[activeGroup].includes(tracker)) {
+    groups[activeGroup].push(tracker);
+    saveGroups(groups);
+  }
+  document.getElementById("groupTrackerInput").value = "";
+  renderGroups();
+};
+
+// Add tracker to group (from group detail popup)
+document.getElementById("addTrackerToGroupDetailBtn").onclick = () => {
+  if (!activeGroup) return;
+  
+  // Prevent adding to guest group
+  if (activeGroup === 'guest') {
+    alert('Cannot add trackers to the guest group. It is a pre-configured demo group.');
+    return;
+  }
+  
+  const tracker = document.getElementById("groupDetailTrackerInput").value.trim();
+  if (!tracker) return;
+  const groups = getGroups();
+  if (!groups[activeGroup].includes(tracker)) {
+    groups[activeGroup].push(tracker);
+    saveGroups(groups);
+    if (!groupSettings[activeGroup]) groupSettings[activeGroup] = {};
+    const index = groups[activeGroup].length - 1;
+    groupSettings[activeGroup][tracker] = {
+      visible: true,
+      color: defaultColors[index % defaultColors.length]
+    };
+    saveGroupSettings();
+  }
+  document.getElementById("groupDetailTrackerInput").value = "";
+  openGroupDetail(activeGroup);
+};
+
+// === GROUP FETCH WITH AUTO-REFRESH ===
+let groupAutoInterval = null;
+let GROUP_AUTO_MS = 20000; // 20 sec
+
+document.getElementById("fetchGroupBtn").onclick = () => {
+  if (!activeGroup) {
+    alert("Select a group first");
+    return;
+  }
+
+  const groups = getGroups();
+  const trackerIds = groups[activeGroup] || [];
+  
+  if (trackerIds.length === 0) {
+    alert("No trackers in this group");
+    return;
+  }
+
+  // ---- Perform Fetch ----
+  if (window.fetchGroupTrackers) window.fetchGroupTrackers(trackerIds);
+
+  // ---- Start Auto Refresh ----
+  if (groupAutoInterval) clearInterval(groupAutoInterval);
+
+  groupAutoInterval = setInterval(() => {
+    console.log("🔄 Auto-refreshing group:", activeGroup);
+    if (window.fetchGroupTrackers) window.fetchGroupTrackers(trackerIds);
+  }, GROUP_AUTO_MS);
+};
+
+/* ================= REALTIME DATA POPUP ================= */
+const realtimePopup = document.getElementById("realtimePopup");
+const realtimeGroupList = document.getElementById("realtimeGroupList");
+
+document.getElementById("openRealtimePopup").onclick = (e) => {
+  e.stopPropagation();
+  closeAllPopups();
+  realtimePopup.style.maxHeight = "600px";
+  realtimePopup.classList.remove("collapsed");
+  document.getElementById("realtimePopupChevron").classList.add("rotate");
+  renderRealtimeGroups();
+};
+
+function renderRealtimeGroups() {
+  realtimeGroupList.innerHTML = "";
+  const groups = getGroups();
+  
+  if (Object.keys(groups).length === 0) {
+    realtimeGroupList.innerHTML = `
+      <div style="padding: 20px; text-align: center; color: #6b7280;">
+        No groups found.
+      </div>
+    `;
+    return;
+  }
+  
+  // Always show guest group first with special styling
+  if (groups['guest']) {
+    const guestGroupDiv = document.createElement("div");
+    guestGroupDiv.className = "realtime-group-header";
+    guestGroupDiv.style.background = "#f0f9ff";
+    guestGroupDiv.style.borderLeft = "4px solid #3b82f6";
+    guestGroupDiv.innerHTML = `
+      <i data-lucide="users" style="width: 16px; height: 16px; margin-right: 8px; color: #3b82f6;"></i>
+      <span class="realtime-group-name" style="color: #1e40af; font-weight: 600;">guest</span>
+      <span style="font-size: 11px; color: #6b7280; margin-right: 8px;">(${groups['guest'].length} trackers)</span>
+      <i data-lucide="chevron-right" class="group-expand-btn" style="width: 16px; height: 16px;"></i>
+    `;
+    
+    const guestTrackerList = document.createElement("div");
+    guestTrackerList.className = "realtime-tracker-list";
+    guestTrackerList.style.display = "none";
+    
+    groups['guest'].forEach(trackerId => {
+      const trackerDiv = document.createElement("div");
+      trackerDiv.className = "realtime-tracker-item";
+      trackerDiv.dataset.trackerId = trackerId;
+      trackerDiv.dataset.groupName = 'guest';
+      trackerDiv.innerHTML = `
+        <i data-lucide="tag" style="width: 14px; height: 14px; margin-right: 8px; color: #6b7280;"></i>
+        <span class="realtime-tracker-id">${trackerId}</span>
+      `;
+      trackerDiv.onclick = (e) => {
+        e.stopPropagation();
+        showTrackerParameters(trackerId);
+      };
+      guestTrackerList.appendChild(trackerDiv);
+    });
+    
+    const guestChevron = guestGroupDiv.querySelector(".group-expand-btn");
+    guestGroupDiv.onclick = () => {
+      const isExpanded = guestTrackerList.style.display === "block";
+      guestTrackerList.style.display = isExpanded ? "none" : "block";
+      guestChevron.classList.toggle("rotated", !isExpanded);
+      lucide.createIcons();
+    };
+    
+    realtimeGroupList.appendChild(guestGroupDiv);
+    realtimeGroupList.appendChild(guestTrackerList);
+    
+    // Add separator
+    const separator = document.createElement("div");
+    separator.style.height = "1px";
+    separator.style.backgroundColor = "#e5e7eb";
+    separator.style.margin = "8px 0";
+    realtimeGroupList.appendChild(separator);
+  }
+  
+  // Show other user-created groups
+  Object.keys(groups).forEach(groupName => {
+    if (groupName !== 'guest') {
+      const groupDiv = document.createElement("div");
+      groupDiv.className = "realtime-group-header";
+      groupDiv.innerHTML = `
+        <i data-lucide="folder" style="width: 16px; height: 16px; margin-right: 8px; color: #6366f1;"></i>
+        <span class="realtime-group-name">${groupName}</span>
+        <i data-lucide="chevron-right" class="group-expand-btn" style="width: 16px; height: 16px;"></i>
+      `;
+      
+      const trackerList = document.createElement("div");
+      trackerList.className = "realtime-tracker-list";
+      trackerList.style.display = "none";
+      
+      groups[groupName].forEach(trackerId => {
+        const trackerDiv = document.createElement("div");
+        trackerDiv.className = "realtime-tracker-item";
+        trackerDiv.dataset.trackerId = trackerId;
+        trackerDiv.dataset.groupName = groupName;
+        trackerDiv.innerHTML = `
+          <i data-lucide="tag" style="width: 14px; height: 14px; margin-right: 8px; color: #6b7280;"></i>
+          <span class="realtime-tracker-id">${trackerId}</span>
+        `;
+        trackerDiv.onclick = (e) => {
+          e.stopPropagation();
+          showTrackerParameters(trackerId);
+        };
+        trackerList.appendChild(trackerDiv);
+      });
+      
+      const chevron = groupDiv.querySelector(".group-expand-btn");
+      groupDiv.onclick = () => {
+        const isExpanded = trackerList.style.display === "block";
+        trackerList.style.display = isExpanded ? "none" : "block";
+        chevron.classList.toggle("rotated", !isExpanded);
+        lucide.createIcons();
+      };
+      
+      realtimeGroupList.appendChild(groupDiv);
+      realtimeGroupList.appendChild(trackerList);
+    }
+  });
+  
+  lucide.createIcons();
+}
+
+function showTrackerParameters(trackerId) {
+  selectedTrackerForRealtime = trackerId;
+  document.getElementById("selectedTrackerId").textContent = trackerId;
+  document.getElementById("trackerParametersSection").style.display = "block";
+  
+  const parametersContainer = document.getElementById("parametersCheckboxes");
+  parametersContainer.innerHTML = "";
+  
+  const settings = getRealtimeSettings();
+  const trackerSettings = settings[trackerId] || {};
+  
+  availableParameters.forEach(param => {
+    const div = document.createElement("div");
+    div.className = "parameter-option";
+    const checkboxId = `param_${trackerId}_${param.id}`;
+    const isChecked = trackerSettings[param.id] !== undefined ? 
+                      trackerSettings[param.id] : param.default;
+    div.innerHTML = `
+      <input type="checkbox" id="${checkboxId}" ${isChecked ? 'checked' : ''}>
+      <label for="${checkboxId}">${param.label}</label>
+    `;
+    const checkbox = div.querySelector('input');
+    checkbox.onchange = () => {};
+    parametersContainer.appendChild(div);
+  });
+}
+
+document.getElementById("saveParametersBtn").onclick = () => {
+  if (!selectedTrackerForRealtime) {
+    alert("Please select a tracker first");
+    return;
+  }
+  const settings = getRealtimeSettings();
+  settings[selectedTrackerForRealtime] = settings[selectedTrackerForRealtime] || {};
+  availableParameters.forEach(param => {
+    const checkboxId = `param_${selectedTrackerForRealtime}_${param.id}`;
+    const checkbox = document.getElementById(checkboxId);
+    if (checkbox) settings[selectedTrackerForRealtime][param.id] = checkbox.checked;
+  });
+  saveRealtimeSettings(settings);
+  const btn = document.getElementById("saveParametersBtn");
+  const originalText = btn.textContent;
+  btn.textContent = "Saved!";
+  btn.style.background = "#10b981";
+  setTimeout(() => {
+    btn.textContent = originalText;
+    btn.style.background = "#6366f1";
+  }, 1500);
+  // Update the table to reflect parameter changes
+  updateRealtimeTableWithAllPoints();
+};
+
+window.getRealtimeParameters = function(trackerId) {
+  const settings = getRealtimeSettings();
+  const trackerSettings = settings[trackerId];
+  if (!trackerSettings) {
+    return availableParameters.reduce((acc, param) => {
+      acc[param.id] = param.default;
+      return acc;
+    }, {});
+  }
+  return trackerSettings;
+};
+
+window.formatRealtimeData = function(data, trackerId) {
+  const parameters = window.getRealtimeParameters(trackerId);
+  const formatted = { 'Tracker ID': trackerId };
+  Object.keys(parameters).forEach(param => {
+    if (parameters[param] && data[param] !== undefined) {
+      formatted[param] = data[param];
+    }
+  });
+  return formatted;
+};
+
+// Make realtime group dropdown collapsible
+document.getElementById("realtimeGroupHeader").onclick = () => {
+  const chevron = document.getElementById("realtimeGroupChevron");
+  const dropdown = document.getElementById("realtimeGroupList");
+  const isCollapsed = dropdown.style.display === "none";
+  dropdown.style.display = isCollapsed ? "block" : "none";
+  chevron.classList.toggle("rotate", isCollapsed);
+};
+
+/* ================= WINDOW RESIZE HANDLER ================= */
+function handleResize() {
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) {
+    sidebar.classList.remove('open');
+    overlay.classList.remove('active');
+  }
+}
+
+window.addEventListener('resize', handleResize);
+handleResize();
+
+/* ================= INITIALIZATION ================= */
+// Initialize guest group trackers in saved trackers
+const groups = getGroups();
+if (groups['guest']) {
+  const savedTrackers = getSavedTrackers();
+  let updated = false;
+  groups['guest'].forEach(trackerId => {
+    if (!savedTrackers.includes(trackerId)) {
+      savedTrackers.push(trackerId);
+      updated = true;
+    }
+  });
+  if (updated) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(savedTrackers));
+  }
+}
+
 renderTrackers();
 renderSensors();
 renderGroups();

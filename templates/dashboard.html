@@ -6432,6 +6432,766 @@ document.addEventListener('keydown', (e) => {
     }
   }
 });
+
+// ================= FIX 1: UPDATE POINT NUMBERS WHEN DATA DECREASES =================
+
+// Replace the existing updateRealtimeTableWithAllPoints function with this fixed version
+function updateRealtimeTableWithAllPoints() {
+  console.log('Updating real-time table with all points...');
+  
+  // Get all trackers that have data
+  const trackerIds = Object.keys(window.realtimeTableDataAllPoints || {});
+  
+  if (trackerIds.length === 0) {
+    console.log('No tracker data available');
+    const tbody = document.querySelector('#realtimeDataTable tbody');
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr class="no-data-row">
+          <td colspan="100">No tracker data available. Fetch a tracker first.</td>
+        </tr>
+      `;
+    }
+    
+    // Update panel title
+    const panelHeader = document.querySelector('#realtimeTablePanelHeader h2');
+    if (panelHeader) {
+      panelHeader.textContent = `Tracker Data Table (0 points)`;
+    }
+    return;
+  }
+  
+  // Determine which columns to show
+  const defaultColumns = ['Tracker ID', 'Point #', 'timestamp', 'latitude', 'longitude', 'altitude', 'uin_no', 'application', 'category'];
+  const columns = new Set(['Tracker ID', 'Point #']);
+  
+  // Add columns based on selected parameters for all trackers
+  trackerIds.forEach(id => {
+    const params = window.getRealtimeParameters ? window.getRealtimeParameters(id) : null;
+    if (params) {
+      Object.keys(params).forEach(param => {
+        if (params[param] && defaultColumns.includes(param)) {
+          columns.add(param);
+        }
+      });
+    } else {
+      // If no parameters selected, show all default columns
+      defaultColumns.forEach(col => columns.add(col));
+    }
+  });
+  
+  // Convert set to array
+  const columnArray = Array.from(columns);
+  
+  // Update table headers
+  const thead = document.querySelector('#realtimeDataTable thead');
+  if (thead) {
+    thead.innerHTML = '';
+    const headerRow = document.createElement('tr');
+    
+    columnArray.forEach(column => {
+      const th = document.createElement('th');
+      th.textContent = formatHeaderText(column);
+      headerRow.appendChild(th);
+    });
+    
+    thead.appendChild(headerRow);
+  }
+  
+  // Update table body
+  const tbody = document.querySelector('#realtimeDataTable tbody');
+  if (tbody) {
+    tbody.innerHTML = '';
+    
+    // Collect ALL points from ALL trackers
+    let allPoints = [];
+    
+    trackerIds.forEach(trackerId => {
+      const points = window.realtimeTableDataAllPoints[trackerId] || [];
+      
+      // Add points with tracker ID
+      points.forEach((point) => {
+        const pointWithTracker = {
+          ...point,
+          'Tracker ID': trackerId,
+          '_trackerId': trackerId
+        };
+        allPoints.push(pointWithTracker);
+      });
+    });
+    
+    console.log(`Total points to display: ${allPoints.length}`);
+    
+    if (allPoints.length === 0) {
+      const row = document.createElement('tr');
+      row.className = 'no-data-row';
+      const td = document.createElement('td');
+      td.colSpan = columnArray.length;
+      td.textContent = 'No data points available.';
+      row.appendChild(td);
+      tbody.appendChild(row);
+    } else {
+      // Sort all points by timestamp (newest first)
+      allPoints.sort((a, b) => {
+        const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return dateB - dateA; // Newest first
+      });
+      
+      // FIX 1: ALWAYS recalculate point numbers from 1 to N
+      allPoints.forEach((point, index) => {
+        point['Point #'] = index + 1; // Always 1 to N based on CURRENT data
+      });
+      
+      // Add each point as a row
+      allPoints.forEach((point) => {
+        const row = document.createElement('tr');
+        const trackerId = point['Tracker ID'];
+        
+        // Get the selected parameters for this tracker
+        const trackerParams = window.getRealtimeParameters ? window.getRealtimeParameters(trackerId) : null;
+        
+        columnArray.forEach(column => {
+          const td = document.createElement('td');
+          
+          if (column === 'Point #') {
+            td.textContent = point[column] || '';
+            td.style.fontWeight = '500';
+            td.style.color = '#4b5563';
+            // Highlight newest points
+            if (point[column] === 1) {
+              td.style.backgroundColor = '#f0f9ff';
+              td.style.borderLeft = '3px solid #3b82f6';
+            }
+          } else if (column === 'Tracker ID') {
+            td.className = 'tracker-id-cell';
+            td.textContent = trackerId;
+          } else {
+            // Check if this parameter is selected for this tracker
+            const shouldShow = trackerParams ? trackerParams[column] : true;
+            
+            if (shouldShow && point[column] !== undefined) {
+              td.textContent = formatCellValue(column, point[column]);
+              // Highlight newest data
+              if (point['Point #'] === 1) {
+                td.style.backgroundColor = '#f0f9ff';
+              }
+            } else {
+              td.textContent = '-';
+              td.style.color = '#9ca3af';
+              td.style.fontStyle = 'italic';
+            }
+          }
+          
+          row.appendChild(td);
+        });
+        
+        tbody.appendChild(row);
+      });
+    }
+  }
+  
+  // Update panel title with point count
+  const panelHeader = document.querySelector('#realtimeTablePanelHeader h2');
+  if (panelHeader) {
+    const totalPoints = Object.values(window.realtimeTableDataAllPoints || {})
+      .reduce((sum, points) => sum + (points ? points.length : 0), 0);
+    
+    // Check if filters are applied
+    let filterText = '';
+    if (currentFilters.trackerId !== 'all' || currentFilters.startTime || currentFilters.endTime) {
+      filterText = ' (Filtered)';
+    }
+    
+    panelHeader.textContent = `Tracker Data Table (${totalPoints} points${filterText})`;
+  }
+  
+  // Show panel if minimized
+  const realtimePanel = document.getElementById('realtimeTablePanel');
+  if (realtimePanel && realtimePanel.classList.contains('minimized')) {
+    realtimePanel.classList.remove('minimized');
+    const chevron = document.getElementById('realtimeTablePanelChevron');
+    if (chevron) chevron.classList.remove('rotated');
+    const container = document.getElementById('realtimeTableContainer');
+    if (container) container.style.display = 'block';
+  }
+  
+  console.log('Table update complete - Point numbers recalculated');
+}
+
+// ================= FIX 2: CLEAR FILTERS SHOULD SHOW ALL DATA =================
+
+// Replace the existing clearFilterBtn event listener with this fixed version
+clearFilterBtn.addEventListener('click', () => {
+  console.log('Clear filters clicked');
+  
+  // Reset filter inputs
+  trackerFilter.value = 'all';
+  
+  // Set default time range (last 7 days to now)
+  const now = new Date();
+  const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  
+  const formatDateTime = (date) => {
+    return date.toISOString().slice(0, 16);
+  };
+  
+  startTimeFilter.value = formatDateTime(oneWeekAgo);
+  endTimeFilter.value = formatDateTime(now);
+  
+  // Reset current filters
+  currentFilters = {
+    trackerId: 'all',
+    startTime: oneWeekAgo,
+    endTime: now
+  };
+  
+  // FIX 2: Always show ALL data when clearing filters
+  console.log('Showing ALL data after clearing filters');
+  updateRealtimeTableWithAllPoints(); // This shows all unfiltered data
+  
+  // Update filter status
+  updateFilterStatus();
+  
+  // Show success message
+  const originalText = clearFilterBtn.innerHTML;
+  clearFilterBtn.innerHTML = '<i data-lucide="check" style="width: 14px; height: 14px;"></i> Cleared!';
+  clearFilterBtn.style.background = '#10b981';
+  
+  setTimeout(() => {
+    clearFilterBtn.innerHTML = originalText;
+    clearFilterBtn.style.background = '#ef4444';
+    lucide.createIcons();
+  }, 1500);
+});
+
+// ================= FIX 3: GROUP FETCHING CLEARS PREVIOUS DATA =================
+
+// Replace the existing fetchGroupBtn event listener with this fixed version
+document.getElementById("fetchGroupBtn").onclick = () => {
+  if (!activeGroup) {
+    alert("Select a group first");
+    return;
+  }
+
+  const groups = getGroups();
+  const trackerIds = groups[activeGroup] || [];
+  
+  if (trackerIds.length === 0) {
+    alert("No trackers in this group");
+    return;
+  }
+
+  // FIX 3: Clear all existing data before fetching new group
+  console.log(`Clearing previous data before fetching group: ${activeGroup}`);
+  
+  // Clear all existing table data
+  window.realtimeTableDataAllPoints = {};
+  
+  // Clear filter dropdown
+  while (trackerFilter.options.length > 1) {
+    trackerFilter.remove(1);
+  }
+  
+  // Reset filters
+  currentFilters = {
+    trackerId: 'all',
+    startTime: null,
+    endTime: null
+  };
+  
+  // Update table immediately to show cleared state
+  updateRealtimeTableWithAllPoints();
+  
+  // Reset filter status
+  updateFilterStatus();
+  
+  // ---- Perform Fetch ----
+  if (window.fetchGroupTrackers) window.fetchGroupTrackers(trackerIds);
+
+  // ---- Start Auto Refresh ----
+  if (groupAutoInterval) clearInterval(groupAutoInterval);
+
+  groupAutoInterval = setInterval(() => {
+    console.log("🔄 Auto-refreshing group:", activeGroup);
+    if (window.fetchGroupTrackers) window.fetchGroupTrackers(trackerIds);
+  }, GROUP_AUTO_MS);
+};
+
+// ================= FIX: NEW ENTRIES AT TOP WITH PROPER NUMBERING =================
+
+// Replace the updateRealtimeTableAllPoints function with this fixed version
+window.updateRealtimeTableAllPoints = function(trackerId, pointsArray, selectedParams = null) {
+  console.log(`updateRealtimeTableAllPoints called with trackerId: ${trackerId}, pointsArray:`, pointsArray);
+  
+  // Handle case when called without parameters (from clearMap)
+  if (trackerId === undefined) {
+    console.log('Clearing table data');
+    if (!window.realtimeTableDataAllPoints) {
+      window.realtimeTableDataAllPoints = {};
+    }
+    window.realtimeTableDataAllPoints = {};
+    updateRealtimeTableWithAllPoints();
+    return;
+  }
+  
+  if (trackerId && pointsArray && Array.isArray(pointsArray)) {
+    console.log(`Processing ${pointsArray.length} points for tracker ${trackerId}`);
+    
+    // Initialize if needed
+    if (!window.realtimeTableDataAllPoints) {
+      window.realtimeTableDataAllPoints = {};
+    }
+    if (!window.realtimeTableDataAllPoints[trackerId]) {
+      window.realtimeTableDataAllPoints[trackerId] = [];
+    }
+    
+    // Track if we need to recalculate point numbers
+    let needToRenumber = false;
+    
+    // Add all new points at the BEGINNING of array (new entries at top)
+    pointsArray.forEach(newPoint => {
+      // Check if point already exists (by timestamp and tracker ID)
+      const exists = window.realtimeTableDataAllPoints[trackerId].some(
+        existingPoint => existingPoint.timestamp === newPoint.timestamp
+      );
+      
+      if (!exists) {
+        // Add new point at the beginning (position 0)
+        window.realtimeTableDataAllPoints[trackerId].unshift(newPoint);
+        needToRenumber = true;
+      }
+    });
+    
+    // Sort by timestamp (newest first) to ensure proper ordering
+    window.realtimeTableDataAllPoints[trackerId].sort((a, b) => {
+      return new Date(b.timestamp) - new Date(a.timestamp);
+    });
+    
+    // Store selected parameters
+    if (selectedParams) {
+      if (!window.realtimeTableParamsAll) {
+        window.realtimeTableParamsAll = {};
+      }
+      window.realtimeTableParamsAll[trackerId] = selectedParams;
+    }
+    
+    console.log(`Now have ${window.realtimeTableDataAllPoints[trackerId].length} points for ${trackerId}`);
+    
+    // Only recalculate point numbers if we added new points
+    if (needToRenumber) {
+      console.log('New points added, will recalculate point numbers');
+    }
+  } else {
+    console.warn('Invalid parameters passed to updateRealtimeTableAllPoints');
+  }
+  
+  // Update the table display
+  updateRealtimeTableWithAllPoints();
+  
+  // Update tracker filter dropdown
+  setTimeout(() => {
+    populateTrackerFilter();
+  }, 100);
+};
+
+// Replace the updateRealtimeTableWithAllPoints function with this version
+function updateRealtimeTableWithAllPoints() {
+  console.log('Updating real-time table with all points...');
+  
+  // Get all trackers that have data
+  const trackerIds = Object.keys(window.realtimeTableDataAllPoints || {});
+  
+  if (trackerIds.length === 0) {
+    console.log('No tracker data available');
+    const tbody = document.querySelector('#realtimeDataTable tbody');
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr class="no-data-row">
+          <td colspan="100">No tracker data available. Fetch a tracker first.</td>
+        </tr>
+      `;
+    }
+    
+    // Update panel title
+    const panelHeader = document.querySelector('#realtimeTablePanelHeader h2');
+    if (panelHeader) {
+      panelHeader.textContent = `Tracker Data Table (0 points)`;
+    }
+    return;
+  }
+  
+  // Determine which columns to show
+  const defaultColumns = ['Tracker ID', 'Point #', 'timestamp', 'latitude', 'longitude', 'altitude', 'uin_no', 'application', 'category'];
+  const columns = new Set(['Tracker ID', 'Point #']);
+  
+  // Add columns based on selected parameters for all trackers
+  trackerIds.forEach(id => {
+    const params = window.getRealtimeParameters ? window.getRealtimeParameters(id) : null;
+    if (params) {
+      Object.keys(params).forEach(param => {
+        if (params[param] && defaultColumns.includes(param)) {
+          columns.add(param);
+        }
+      });
+    } else {
+      // If no parameters selected, show all default columns
+      defaultColumns.forEach(col => columns.add(col));
+    }
+  });
+  
+  // Convert set to array
+  const columnArray = Array.from(columns);
+  
+  // Update table headers
+  const thead = document.querySelector('#realtimeDataTable thead');
+  if (thead) {
+    thead.innerHTML = '';
+    const headerRow = document.createElement('tr');
+    
+    columnArray.forEach(column => {
+      const th = document.createElement('th');
+      th.textContent = formatHeaderText(column);
+      headerRow.appendChild(th);
+    });
+    
+    thead.appendChild(headerRow);
+  }
+  
+  // Update table body
+  const tbody = document.querySelector('#realtimeDataTable tbody');
+  if (tbody) {
+    tbody.innerHTML = '';
+    
+    // Collect ALL points from ALL trackers
+    let allPoints = [];
+    let maxPointNumber = 0;
+    
+    trackerIds.forEach(trackerId => {
+      const points = window.realtimeTableDataAllPoints[trackerId] || [];
+      
+      // Find existing maximum point number for this tracker
+      const existingMax = Math.max(...points.map(p => p['Point #'] || 0), 0);
+      maxPointNumber = Math.max(maxPointNumber, existingMax);
+      
+      // Add points with tracker ID
+      points.forEach((point) => {
+        const pointWithTracker = {
+          ...point,
+          'Tracker ID': trackerId,
+          '_trackerId': trackerId,
+          '_existingPointNumber': point['Point #'] || 0
+        };
+        allPoints.push(pointWithTracker);
+      });
+    });
+    
+    console.log(`Total points to display: ${allPoints.length}, Max point number: ${maxPointNumber}`);
+    
+    if (allPoints.length === 0) {
+      const row = document.createElement('tr');
+      row.className = 'no-data-row';
+      const td = document.createElement('td');
+      td.colSpan = columnArray.length;
+      td.textContent = 'No data points available.';
+      row.appendChild(td);
+      tbody.appendChild(row);
+    } else {
+      // Sort all points by timestamp (newest first)
+      allPoints.sort((a, b) => {
+        const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return dateB - dateA; // Newest first
+      });
+      
+      // FIX: Assign point numbers - NEW entries get next sequential numbers
+      let nextNewPointNumber = maxPointNumber + 1;
+      
+      allPoints.forEach((point) => {
+        // If point doesn't have a number yet (new entry), assign next number
+        if (!point['Point #'] || point['Point #'] === 0) {
+          point['Point #'] = nextNewPointNumber++;
+        }
+        // Keep existing point numbers as they are
+      });
+      
+      // Re-sort by point number descending (newest/highest numbers first)
+      allPoints.sort((a, b) => b['Point #'] - a['Point #']);
+      
+      console.log('Point numbers assigned:', allPoints.map(p => ({id: p['Tracker ID'], point: p['Point #']})));
+      
+      // Add each point as a row
+      allPoints.forEach((point) => {
+        const row = document.createElement('tr');
+        const trackerId = point['Tracker ID'];
+        
+        // Get the selected parameters for this tracker
+        const trackerParams = window.getRealtimeParameters ? window.getRealtimeParameters(trackerId) : null;
+        
+        columnArray.forEach(column => {
+          const td = document.createElement('td');
+          
+          if (column === 'Point #') {
+            td.textContent = point[column] || '';
+            td.style.fontWeight = '500';
+            td.style.color = '#4b5563';
+            // Highlight newest points (highest point number)
+            const allPointNumbers = allPoints.map(p => p['Point #']).filter(n => n);
+            const maxPoint = Math.max(...allPointNumbers, 0);
+            if (point['Point #'] === maxPoint) {
+              td.style.backgroundColor = '#f0f9ff';
+              td.style.borderLeft = '3px solid #3b82f6';
+            }
+          } else if (column === 'Tracker ID') {
+            td.className = 'tracker-id-cell';
+            td.textContent = trackerId;
+          } else {
+            // Check if this parameter is selected for this tracker
+            const shouldShow = trackerParams ? trackerParams[column] : true;
+            
+            if (shouldShow && point[column] !== undefined) {
+              td.textContent = formatCellValue(column, point[column]);
+              // Highlight newest data
+              const allPointNumbers = allPoints.map(p => p['Point #']).filter(n => n);
+              const maxPoint = Math.max(...allPointNumbers, 0);
+              if (point['Point #'] === maxPoint) {
+                td.style.backgroundColor = '#f0f9ff';
+              }
+            } else {
+              td.textContent = '-';
+              td.style.color = '#9ca3af';
+              td.style.fontStyle = 'italic';
+            }
+          }
+          
+          row.appendChild(td);
+        });
+        
+        tbody.appendChild(row);
+      });
+    }
+  }
+  
+  // Update panel title with point count
+  const panelHeader = document.querySelector('#realtimeTablePanelHeader h2');
+  if (panelHeader) {
+    const totalPoints = Object.values(window.realtimeTableDataAllPoints || {})
+      .reduce((sum, points) => sum + (points ? points.length : 0), 0);
+    
+    // Check if filters are applied
+    let filterText = '';
+    if (currentFilters.trackerId !== 'all' || currentFilters.startTime || currentFilters.endTime) {
+      filterText = ' (Filtered)';
+    }
+    
+    panelHeader.textContent = `Tracker Data Table (${totalPoints} points${filterText})`;
+  }
+  
+  // Show panel if minimized
+  const realtimePanel = document.getElementById('realtimeTablePanel');
+  if (realtimePanel && realtimePanel.classList.contains('minimized')) {
+    realtimePanel.classList.remove('minimized');
+    const chevron = document.getElementById('realtimeTablePanelChevron');
+    if (chevron) chevron.classList.remove('rotated');
+    const container = document.getElementById('realtimeTableContainer');
+    if (container) container.style.display = 'block';
+  }
+  
+  console.log('Table update complete');
+}
+
+// ================= FIX FOR GROUP FETCHING (CLEAR AND START FRESH) =================
+
+// Replace the fetchGroupBtn event listener with this version
+document.getElementById("fetchGroupBtn").onclick = () => {
+  if (!activeGroup) {
+    alert("Select a group first");
+    return;
+  }
+
+  const groups = getGroups();
+  const trackerIds = groups[activeGroup] || [];
+  
+  if (trackerIds.length === 0) {
+    alert("No trackers in this group");
+    return;
+  }
+
+  // FIX: Clear all existing data before fetching new group
+  console.log(`Clearing previous data before fetching group: ${activeGroup}`);
+  
+  // Clear all existing table data
+  window.realtimeTableDataAllPoints = {};
+  
+  // Clear filter dropdown
+  while (trackerFilter.options.length > 1) {
+    trackerFilter.remove(1);
+  }
+  
+  // Reset filters
+  currentFilters = {
+    trackerId: 'all',
+    startTime: null,
+    endTime: null
+  };
+  
+  // Update table immediately to show cleared state
+  updateRealtimeTableWithAllPoints();
+  
+  // Reset filter status
+  updateFilterStatus();
+  
+  // ---- Perform Fetch ----
+  if (window.fetchGroupTrackers) {
+    // Reset point numbering when starting fresh group
+    console.log('Starting fresh group fetch - point numbers will start from 1');
+    window.fetchGroupTrackers(trackerIds);
+  }
+
+  // ---- Start Auto Refresh ----
+  if (groupAutoInterval) clearInterval(groupAutoInterval);
+
+  groupAutoInterval = setInterval(() => {
+    console.log("🔄 Auto-refreshing group:", activeGroup);
+    if (window.fetchGroupTrackers) window.fetchGroupTrackers(trackerIds);
+  }, GROUP_AUTO_MS);
+};
+
+// ================= FIX FOR INDIVIDUAL TRACKER FETCH =================
+
+// Make sure individual tracker fetch also adds new entries at top
+function handleFetch(id) {
+  if (!id) return;
+  trackerInput.value = id;
+  saveTracker(id);
+  renderTrackers();
+  if (typeof fetchDroneData === "function") {
+    // Clear existing data for this tracker to start fresh numbering
+    if (window.realtimeTableDataAllPoints && window.realtimeTableDataAllPoints[id]) {
+      // Keep existing data but we'll add new entries at top
+      console.log(`Fetching individual tracker ${id} - new entries will be added at top`);
+    }
+    fetchDroneData(id);
+  }
+}
+
+// ================= ENSURE FILTERS WORK CORRECTLY =================
+
+// Update the applyFilterBtn event listener to handle showing all data
+applyFilterBtn.addEventListener('click', () => {
+  // Get filter values
+  const selectedTrackerId = trackerFilter.value;
+  const startTimeValue = startTimeFilter.value;
+  const endTimeValue = endTimeFilter.value;
+  
+  // Update current filters
+  currentFilters.trackerId = selectedTrackerId;
+  currentFilters.startTime = startTimeValue ? new Date(startTimeValue) : null;
+  currentFilters.endTime = endTimeValue ? new Date(endTimeValue) : null;
+  
+  // Validate time range
+  if (currentFilters.startTime && currentFilters.endTime && currentFilters.startTime > currentFilters.endTime) {
+    alert('Start time cannot be after end time!');
+    return;
+  }
+  
+  // Update filter status
+  updateFilterStatus();
+  
+  // If no filters are active, show all data
+  if (selectedTrackerId === 'all' && !startTimeValue && !endTimeValue) {
+    console.log('No filters active, showing all data');
+    updateRealtimeTableWithAllPoints();
+  } else {
+    // Apply filters and update table
+    applyFiltersToTable();
+  }
+  
+  // Close filter section if on mobile
+  if (window.innerWidth <= 768) {
+    filterSection.style.display = 'none';
+    updateFilterButtonIcon();
+  }
+});
+
+// ================= INITIALIZE WITH FIXES =================
+
+// Add this to your existing DOMContentLoaded event
+document.addEventListener('DOMContentLoaded', function() {
+  // Initialize data objects if they don't exist
+  if (!window.realtimeTableDataAllPoints) {
+    window.realtimeTableDataAllPoints = {};
+  }
+  if (!window.realtimeTableParamsAll) {
+    window.realtimeTableParamsAll = {};
+  }
+  
+  // Ensure point numbers are calculated on initial load
+  setTimeout(() => {
+    if (Object.keys(window.realtimeTableDataAllPoints).length > 0) {
+      updateRealtimeTableWithAllPoints();
+    }
+  }, 500);
+});
+
+// ================= HELPER FUNCTIONS (keep existing) =================
+
+function formatHeaderText(header) {
+  const formatMap = {
+    'timestamp': 'Timestamp',
+    'latitude': 'Latitude',
+    'longitude': 'Longitude',
+    'altitude': 'Altitude (m)',
+    'uin_no': 'UIN No',
+    'application': 'Application',
+    'category': 'Category',
+    'Tracker ID': 'Tracker ID',
+    'Point #': '#'
+  };
+  return formatMap[header] || header;
+}
+
+function formatCellValue(header, value) {
+  if (header === 'timestamp' && value) {
+    try {
+      return new Date(value).toLocaleString();
+    } catch (e) {
+      return value;
+    }
+  }
+  if ((header === 'latitude' || header === 'longitude') && value) {
+    const num = parseFloat(value);
+    return isNaN(num) ? value : num.toFixed(6);
+  }
+  if (header === 'altitude' && value) {
+    const num = parseFloat(value);
+    return isNaN(num) ? value : `${num.toFixed(1)}`;
+  }
+  return value || '-';
+}
+
+function updateFilterStatus() {
+  let statusText = '';
+  
+  if (currentFilters.trackerId !== 'all') {
+    statusText += `Tracker: ${currentFilters.trackerId} `;
+  }
+  
+  if (currentFilters.startTime || currentFilters.endTime) {
+    if (statusText) statusText += '| ';
+    statusText += 'Time filtered';
+    
+    if (currentFilters.startTime && currentFilters.endTime) {
+      const startStr = currentFilters.startTime.toLocaleString();
+      const endStr = currentFilters.endTime.toLocaleString();
+      statusText += ` (${startStr} to ${endStr})`;
+    }
+  }
+  
+  filterStatus.textContent = statusText || 'No filters applied';
+  filterStatus.style.color = statusText ? '#10b981' : '#6b7280';
+  filterStatus.style.fontWeight = statusText ? '600' : '400';
+}
 </script>
 </body>
 </html> 

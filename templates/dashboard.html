@@ -9689,7 +9689,7 @@ window.updateRealtimeTableAllPoints = function(trackerId, pointsArray, selectedP
   }, 100);
 };
 
-// Function to update table with ALL points - FIXED POINT NUMBERING
+// Function to update table with ALL points - NEWEST ENTRIES AT TOP, INDEXING FROM N TO 1
 function updateRealtimeTableWithAllPoints() {
   console.log('Updating real-time table with all points...');
   
@@ -9759,28 +9759,34 @@ function updateRealtimeTableWithAllPoints() {
     
     // Collect ALL points from ALL trackers
     let allPoints = [];
-    let maxPointNumber = 0;
     
+    // Process each tracker to get its points
     trackerIds.forEach(trackerId => {
       const points = window.realtimeTableDataAllPoints[trackerId] || [];
       
-      // Find existing maximum point number for this tracker
-      const existingMax = Math.max(...points.map(p => p['Point #'] || 0), 0);
-      maxPointNumber = Math.max(maxPointNumber, existingMax);
-      
-      // Add points with tracker ID
-      points.forEach((point) => {
-        const pointWithTracker = {
-          ...point,
-          'Tracker ID': trackerId,
-          '_trackerId': trackerId,
-          '_existingPointNumber': point['Point #'] || 0
-        };
-        allPoints.push(pointWithTracker);
-      });
+      if (points.length > 0) {
+        // Sort points for this tracker by timestamp (oldest first) to assign point numbers correctly
+        const sortedByOldest = [...points].sort((a, b) => {
+          const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return dateA - dateB; // Oldest first
+        });
+        
+        // Assign point numbers for this tracker (oldest gets #1, newest gets #n)
+        sortedByOldest.forEach((point, index) => {
+          const pointWithTracker = {
+            ...point,
+            'Tracker ID': trackerId,
+            'Point #': index + 1, // Oldest point gets #1, newest gets highest number
+            '_trackerId': trackerId,
+            '_sortTimestamp': point.timestamp ? new Date(point.timestamp).getTime() : 0
+          };
+          allPoints.push(pointWithTracker);
+        });
+      }
     });
     
-    console.log(`Total points to display: ${allPoints.length}, Max point number: ${maxPointNumber}`);
+    console.log(`Total points to display: ${allPoints.length}`);
     
     if (allPoints.length === 0) {
       const row = document.createElement('tr');
@@ -9791,28 +9797,12 @@ function updateRealtimeTableWithAllPoints() {
       row.appendChild(td);
       tbody.appendChild(row);
     } else {
-      // Sort all points by timestamp (newest first)
+      // Sort ALL points by timestamp (newest first) for display (newest at top)
       allPoints.sort((a, b) => {
-        const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        return dateB - dateA; // Newest first
+        return b._sortTimestamp - a._sortTimestamp; // Newest first
       });
       
-      // Assign point numbers - NEW entries get next sequential numbers
-      let nextNewPointNumber = maxPointNumber + 1;
-      
-      allPoints.forEach((point) => {
-        // If point doesn't have a number yet (new entry), assign next number
-        if (!point['Point #'] || point['Point #'] === 0) {
-          point['Point #'] = nextNewPointNumber++;
-        }
-        // Keep existing point numbers as they are
-      });
-      
-      // Re-sort by point number descending (newest/highest numbers first)
-      allPoints.sort((a, b) => b['Point #'] - a['Point #']);
-      
-      // Add each point as a row
+      // Add each point as a row (newest at top, with highest point numbers at top)
       allPoints.forEach((point) => {
         const row = document.createElement('tr');
         const trackerId = point['Tracker ID'];
@@ -9827,13 +9817,6 @@ function updateRealtimeTableWithAllPoints() {
             td.textContent = point[column] || '';
             td.style.fontWeight = '500';
             td.style.color = '#4b5563';
-            // Highlight newest points (highest point number)
-            const allPointNumbers = allPoints.map(p => p['Point #']).filter(n => n);
-            const maxPoint = Math.max(...allPointNumbers, 0);
-            if (point['Point #'] === maxPoint) {
-              td.style.backgroundColor = '#f0f9ff';
-              td.style.borderLeft = '3px solid #3b82f6';
-            }
           } else if (column === 'Tracker ID') {
             td.className = 'tracker-id-cell';
             td.textContent = trackerId;
@@ -9843,12 +9826,6 @@ function updateRealtimeTableWithAllPoints() {
             
             if (shouldShow && point[column] !== undefined) {
               td.textContent = formatCellValue(column, point[column]);
-              // Highlight newest data
-              const allPointNumbers = allPoints.map(p => p['Point #']).filter(n => n);
-              const maxPoint = Math.max(...allPointNumbers, 0);
-              if (point['Point #'] === maxPoint) {
-                td.style.backgroundColor = '#f0f9ff';
-              }
             } else {
               td.textContent = '-';
               td.style.color = '#9ca3af';
@@ -9879,7 +9856,164 @@ function updateRealtimeTableWithAllPoints() {
     panelHeader.textContent = `Tracker Data Table (${totalPoints} points${filterText})`;
   }
   
-  console.log('Table update complete');
+  console.log('Table update complete - newest entries at top with reverse indexing');
+}
+
+// Update filtered table function - NEWEST ENTRIES AT TOP, INDEXING FROM N TO 1
+function updateFilteredTable(filteredData) {
+  const tbody = document.querySelector('#realtimeDataTable tbody');
+  const thead = document.querySelector('#realtimeDataTable thead');
+  
+  if (!tbody || !thead) {
+    console.error('Table elements not found');
+    return;
+  }
+  
+  // Get all trackers that have filtered data
+  const trackerIds = Object.keys(filteredData || {});
+  
+  if (trackerIds.length === 0) {
+    tbody.innerHTML = `
+      <tr class="no-data-row">
+        <td colspan="100">No tracker data found with the current filters.</td>
+      </tr>
+    `;
+    
+    // Update panel title
+    const panelHeader = document.querySelector('#realtimeTablePanelHeader h2');
+    if (panelHeader) {
+      panelHeader.textContent = 'Tracker Data Table (0 points)';
+    }
+    
+    return;
+  }
+  
+  // Determine which columns to show (same logic as before)
+  const defaultColumns = ['Tracker ID', 'Point #', 'timestamp', 'latitude', 'longitude', 'altitude', 'uin_no', 'application', 'category'];
+  const columns = new Set(['Tracker ID', 'Point #']);
+  
+  // Add columns based on selected parameters for filtered trackers
+  trackerIds.forEach(id => {
+    const params = window.getRealtimeParameters ? window.getRealtimeParameters(id) : null;
+    if (params) {
+      Object.keys(params).forEach(param => {
+        if (params[param] && defaultColumns.includes(param)) {
+          columns.add(param);
+        }
+      });
+    } else {
+      // If no parameters selected, show all default columns
+      defaultColumns.forEach(col => columns.add(col));
+    }
+  });
+  
+  // Convert set to array
+  const columnArray = Array.from(columns);
+  
+  // Update table headers
+  thead.innerHTML = '';
+  const headerRow = document.createElement('tr');
+  
+  columnArray.forEach(column => {
+    const th = document.createElement('th');
+    th.textContent = formatHeaderText(column);
+    headerRow.appendChild(th);
+  });
+  
+  thead.appendChild(headerRow);
+  
+  // Update table body
+  tbody.innerHTML = '';
+  
+  // Collect ALL filtered points from ALL trackers
+  let allPoints = [];
+  
+  // Process each tracker separately to maintain correct point numbering
+  trackerIds.forEach(trackerId => {
+    const points = filteredData[trackerId] || [];
+    
+    if (points.length > 0) {
+      // Sort points for this tracker by timestamp (oldest first) to assign point numbers correctly
+      const sortedByOldest = [...points].sort((a, b) => {
+        const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        return dateA - dateB; // Oldest first
+      });
+      
+      // Assign point numbers for this tracker (oldest gets #1, newest gets #n)
+      sortedByOldest.forEach((point, index) => {
+        const pointWithTracker = {
+          ...point,
+          'Tracker ID': trackerId,
+          'Point #': index + 1, // Oldest point gets #1, newest gets highest number
+          '_trackerId': trackerId,
+          '_sortTimestamp': point.timestamp ? new Date(point.timestamp).getTime() : 0
+        };
+        allPoints.push(pointWithTracker);
+      });
+    }
+  });
+  
+  console.log(`Filtered points to display: ${allPoints.length}`);
+  
+  if (allPoints.length === 0) {
+    tbody.innerHTML = `
+      <tr class="no-data-row">
+        <td colspan="100">No tracker data found with the current filters.</td>
+      </tr>
+    `;
+  } else {
+    // Sort ALL points by timestamp (newest first) for display (newest at top)
+    allPoints.sort((a, b) => {
+      return b._sortTimestamp - a._sortTimestamp; // Newest first
+    });
+    
+    // Add each point as a row (newest at top, with highest point numbers at top)
+    allPoints.forEach((point) => {
+      const row = document.createElement('tr');
+      const trackerId = point['Tracker ID'];
+      
+      // Get the selected parameters for this tracker
+      const trackerParams = window.getRealtimeParameters ? window.getRealtimeParameters(trackerId) : null;
+      
+      columnArray.forEach(column => {
+        const td = document.createElement('td');
+        
+        if (column === 'Point #') {
+          td.textContent = point[column] || '';
+          td.style.fontWeight = '500';
+          td.style.color = '#4b5563';
+        } else if (column === 'Tracker ID') {
+          td.className = 'tracker-id-cell';
+          td.textContent = trackerId;
+        } else {
+          // Check if this parameter is selected for this tracker
+          const shouldShow = trackerParams ? trackerParams[column] : true;
+          
+          if (shouldShow && point[column] !== undefined) {
+            td.textContent = formatCellValue(column, point[column]);
+          } else {
+            td.textContent = '-';
+            td.style.color = '#9ca3af';
+            td.style.fontStyle = 'italic';
+          }
+        }
+        
+        row.appendChild(td);
+      });
+      
+      tbody.appendChild(row);
+    });
+  }
+  
+  // Update panel title with filtered point count
+  const panelHeader = document.querySelector('#realtimeTablePanelHeader h2');
+  if (panelHeader) {
+    const totalPoints = Object.values(filteredData || {})
+      .reduce((sum, points) => sum + (points ? points.length : 0), 0);
+    const filterText = currentFilters.trackerId !== 'all' || currentFilters.startTime || currentFilters.endTime ? ' (Filtered)' : '';
+    panelHeader.textContent = `Tracker Data Table (${totalPoints} points${filterText})`;
+  }
 }
 
 // Helper functions for formatting

@@ -5375,14 +5375,8 @@ function updateSensorTable(sensorData = null) {
     tbody.appendChild(tr);
   });
 
-  // --- Auto-expand panel if minimized ---
-  if (panel.classList.contains("minimized")) {
-    panel.classList.remove("minimized");
-    document.getElementById("sensorTablePanelChevron")?.classList.remove("rotated");
-    container.style.display = "block";
-  }
-  
-  // Update panel title with sensor count
+  // REMOVED AUTO-EXPAND - Panel will only open/close when user clicks on header
+  // Just update the panel title
   const panelHeader = document.querySelector('#sensorTablePanelHeader h2');
   if (panelHeader) {
     const sensorIds = Object.keys(window.sensorTableData || {});
@@ -6215,15 +6209,8 @@ document.addEventListener('DOMContentLoaded', function () {
       console.error('updateRealtimeTableAllPoints is not defined or no data to display!');
     }
     
-    // Auto-expand the real-time panel
-    const realtimePanel = document.getElementById('realtimeTablePanel');
-    if (realtimePanel && realtimePanel.classList.contains('minimized')) {
-      realtimePanel.classList.remove('minimized');
-      const chevron = document.getElementById('realtimeTablePanelChevron');
-      if (chevron) chevron.classList.remove('rotated');
-      const container = document.getElementById('realtimeTableContainer');
-      if (container) container.style.display = 'block';
-    }
+    // REMOVED AUTO-EXPAND - Panel will only open/close when user clicks on header
+    // Do not auto-expand the panel when new data arrives
   }
 
   /* ================= GROUP FETCH ================= */

@@ -29,11 +29,17 @@ class Config:
 
     encoded_password = quote_plus(DB_PASSWORD)
 
-    SQLALCHEMY_DATABASE_URI = 'postgresql://postgres:Harvi%4057@localhost:5432/Drone-Tag'
+# this is used for local postgresql to take local connection
+    # SQLALCHEMY_DATABASE_URI = 'postgresql://postgres:Harvi%4057@localhost:5432/Drone-Tag'
+
+    # SQLALCHEMY_TRACK_MODIFICATIONS = False
+    # SECRET_KEY = os.urandom(24)
+    
+
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
 
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SECRET_KEY = os.urandom(24)
-    
+    SECRET_KEY = os.getenv("SECRET_KEY", "drone-tag-secret-key")
 
     # AWS_API_ENDPOINT = os.getenv('AWS_API_ENDPOINT',
     #     'https://7mmfy9xgk9.execute-api.ap-south-1.amazonaws.com/json/data')

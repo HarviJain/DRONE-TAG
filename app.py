@@ -712,6 +712,11 @@ app.secret_key = 'supersecretkey123'
 app.config.from_object(Config)
 db.init_app(app)
 
+# three line is added for db connection of render
+with app.app_context():
+    db.create_all()
+    print("Database tables created successfully")
+
 logging.basicConfig(level=logging.DEBUG)
 
 # Guest mode configuration
@@ -1373,7 +1378,10 @@ def inject_template_vars():
 # -----------------------------
 # Run App
 # -----------------------------
+# if __name__ == '__main__':
+#     with app.app_context():
+#         db.create_all()
+#     app.run(host='0.0.0.0', port=5000, debug=True)
+
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)

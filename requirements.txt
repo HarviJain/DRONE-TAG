@@ -1,3 +1,5 @@
+
+
 # Flask==2.2.5
 # Flask-SQLAlchemy==3.0.3
 # psycopg2-binary==2.9.9
@@ -5,13 +7,22 @@
 # boto3==1.20.32
 # requests==2.26.0
 # Flask-Migrate==3.1.0
+# Flask-Cors==3.0.10
+# gunicorn==23.0.0
 
-Flask==2.2.5
-Flask-SQLAlchemy==3.0.3
-psycopg2-binary==2.9.9
-python-dotenv==0.19.0
-boto3==1.20.32
-requests==2.26.0
-Flask-Migrate==3.1.0
-Flask-Cors==3.0.10
+
+
+Flask==3.1.1
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.7
+Flask-Cors==5.0.0
+
+SQLAlchemy==2.0.36
+psycopg2-binary==2.9.10
+
+python-dotenv==1.0.1
+boto3==1.35.99
+requests==2.32.3
+
 gunicorn==23.0.0
+Werkzeug==3.1.3
